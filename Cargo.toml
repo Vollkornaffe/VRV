@@ -13,3 +13,8 @@ anyhow = "1.0.53"
 
 [dev-dependencies]
 simplelog = "0.11.2"
+
+[features]
+validation_openxr = []
+validation_vulkan = []
+validation = ["validation_openxr", "validation_vulkan"]
