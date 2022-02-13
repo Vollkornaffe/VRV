@@ -1,23 +1,22 @@
-use std::fs::OpenOptions;
+use anyhow::Result;
 
-mod openxr;
-mod vulkan;
+mod wrap_openxr;
+mod wrap_vulkan;
+mod wrap_winit;
 
 pub struct State {
-    openxr_state: openxr::State,
-    vulkan_state: vulkan::State,
+    window: wrap_winit::State,
+    openxr: wrap_openxr::State,
+    vulkan: wrap_vulkan::State,
 }
 
 impl State {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self> {
         log::info!("Creating new VRV state");
-
-        let openxr_state = openxr::State::new();
-        let vulkan_state = vulkan::State::new();
-
-        Self {
-            openxr_state,
-            vulkan_state,
-        }
+        Ok(Self {
+            window: wrap_winit::State::new(),
+            openxr: wrap_openxr::State::new()?,
+            vulkan: wrap_vulkan::State::new(),
+        })
     }
 }
