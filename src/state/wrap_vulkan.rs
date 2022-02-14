@@ -1,6 +1,6 @@
 use std::ffi::{CStr, CString};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Error, Result};
 use ash::{
     extensions::ext::DebugUtils,
     vk::{
@@ -143,7 +143,12 @@ impl State {
 
         log::trace!("Vulkan instance extensions: {:?}", instance_extensions);
 
-        let device_extensions = xr_base.get_device_extensions()?;
+        // this debug marker extension is now part of debug utils and isn't supported by my card
+        let device_extensions: Vec<CString> = xr_base
+            .get_device_extensions()?
+            .into_iter()
+            .filter(|ext| *ext != CString::new("VK_EXT_debug_marker").unwrap())
+            .collect();
 
         log::trace!("Vulkan device extensions: {:?}", device_extensions);
 
@@ -198,6 +203,7 @@ impl State {
                 CStr::from_ptr(prop.extension_name.as_ptr())
             });
         }
+
         for req_ext in &device_extensions {
             if device_properties
                 .iter()
@@ -219,6 +225,16 @@ impl State {
                 .into_iter()
                 .enumerate()
                 .filter_map(|(queue_family_index, info)| {
+                    log::trace!(
+                "{}: GRAPHICS: {:?}, COMPUTE: {:?}, TRANSFER: {:?}, SPARSE_BINDING: {:?}, #: {}",
+                queue_family_index,
+                info.queue_flags.contains(QueueFlags::GRAPHICS),
+                info.queue_flags.contains(QueueFlags::COMPUTE),
+                info.queue_flags.contains(QueueFlags::TRANSFER),
+                info.queue_flags.contains(QueueFlags::SPARSE_BINDING),
+                info.queue_count,
+            );
+
                     if info
                         .queue_flags
                         .contains(QueueFlags::GRAPHICS | QueueFlags::TRANSFER)
@@ -228,8 +244,9 @@ impl State {
                         None
                     }
                 })
-                .next()
-                .expect("Vulkan device has no graphics queue");
+                .last() // this is to log each
+                .ok_or(Error::msg("Vulkan device has no suitable queue"))?;
+        log::trace!("Using queue nr. {}", queue_family_index);
 
         Ok(Self {
             #[cfg(feature = "validation_vulkan")]
