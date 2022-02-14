@@ -207,6 +207,13 @@ impl State {
                 bail!("Physical device doesn't support extension: {:?}", req_ext);
             }
         }
+        let physical_device_properties =
+            unsafe { instance.get_physical_device_properties(physical_device) };
+        if physical_device_properties.api_version < vk_target_version {
+            unsafe { instance.destroy_instance(None) };
+            bail!("Vulkan phyiscal device doesn't support version");
+        }
+
 
         Ok(Self {
             #[cfg(feature = "validation_vulkan")]
