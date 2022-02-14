@@ -14,13 +14,13 @@ use openxr::{
         platform::{VkInstance, VkPhysicalDevice},
         GraphicsRequirementsVulkanKHR,
     },
-    ApplicationInfo, Entry, EnvironmentBlendMode, ExtensionSet, FormFactor, Instance, SystemId,
-    ViewConfigurationType,
+    ApplicationInfo, Entry, EnvironmentBlendMode, ExtensionSet, FormFactor, Instance,
+    StructureType, SystemId, Version, ViewConfigurationType, Vulkan, vulkan::Requirements,
 };
 
 fn check(instance: &Instance, xr_result: sys::Result) -> Result<()> {
     if xr_result != sys::Result::SUCCESS {
-        bail!("{:?}", instance.result_to_string(xr_result));
+        bail!("{}", instance.result_to_string(xr_result).unwrap());
     }
     Ok(())
 }
