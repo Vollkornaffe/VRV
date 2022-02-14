@@ -107,7 +107,13 @@ mod debug {
 #[cfg(feature = "validation_vulkan")]
 use debug::Debug;
 
-pub struct State {}
+pub struct State {
+    #[cfg(feature = "validation_vulkan")]
+    debug: Debug,
+
+    entry: Entry,
+    instance: Instance,
+}
 
 impl State {
     pub fn new(xr_base: &wrap_openxr::State) -> Result<State> {
@@ -167,6 +173,29 @@ impl State {
 
         let instance = unsafe { entry.create_instance(&info, None) }?;
 
-        Ok(Self {})
+        #[cfg(feature = "validation_vulkan")]
+        let debug = Debug::new(&entry, &instance)?;
+
+        let physical_device_enumeration = unsafe { instance.enumerate_physical_devices() }?;
+        for (i, physical_device) in physical_device_enumeration.iter().enumerate() {
+            log::info!("Available physical device nr. {}: {:?}", i, unsafe {
+                CStr::from_ptr(
+                    instance
+                        .get_physical_device_properties(*physical_device)
+                        .device_name
+                        .as_ptr(),
+                )
+            });
+        }
+
+
+
+        Ok(Self {
+            #[cfg(feature = "validation_vulkan")]
+            debug,
+
+            entry,
+            instance,
+        })
     }
 }
