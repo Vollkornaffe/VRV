@@ -14,8 +14,9 @@ use openxr::{
         platform::{VkInstance, VkPhysicalDevice},
         GraphicsRequirementsVulkanKHR,
     },
+    vulkan::Requirements,
     ApplicationInfo, Entry, EnvironmentBlendMode, ExtensionSet, FormFactor, Instance,
-    StructureType, SystemId, Version, ViewConfigurationType, Vulkan, vulkan::Requirements,
+    StructureType, SystemId, Version, ViewConfigurationType, Vulkan,
 };
 
 fn check(instance: &Instance, xr_result: sys::Result) -> Result<()> {
@@ -213,7 +214,9 @@ impl State {
     }
 
     pub fn get_graphics_requirements(&self) -> Result<Requirements> {
-        Ok(self.instance.graphics_requirements::<Vulkan>(self.system_id)?)
+        Ok(self
+            .instance
+            .graphics_requirements::<Vulkan>(self.system_id)?)
     }
 
     pub fn get_instance_extensions(&self) -> Result<Vec<CString>> {

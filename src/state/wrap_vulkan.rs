@@ -4,8 +4,8 @@ use anyhow::{bail, Error, Result};
 use ash::{
     extensions::ext::DebugUtils,
     vk::{
-        make_version, version_major, version_minor, ApplicationInfo, InstanceCreateInfo,
-        QueueFlags, ValidationCacheCreateInfoEXT,
+        api_version_major, api_version_minor, make_api_version, ApplicationInfo,
+        InstanceCreateInfo, QueueFlags, ValidationCacheCreateInfoEXT,
     },
     Entry, Instance,
 };
@@ -121,12 +121,12 @@ impl State {
 
         log::info!("Creating new Vulkan State");
 
-        let vk_target_version = make_version(1, 2, 0);
+        let vk_target_version = make_api_version(0, 1, 2, 0);
 
         let reqs = xr_base.get_graphics_requirements()?;
         let xr_vk_target_version = openxr::Version::new(
-            version_major(vk_target_version) as u16,
-            version_minor(vk_target_version) as u16,
+            api_version_major(vk_target_version) as u16,
+            api_version_minor(vk_target_version) as u16,
             0,
         );
 
