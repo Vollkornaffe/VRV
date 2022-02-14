@@ -6,7 +6,6 @@ use std::{
 };
 
 use anyhow::{bail, Result};
-use ash::vk::{self, Handle};
 use openxr::{
     raw::VulkanEnableKHR,
     sys::{
@@ -220,77 +219,29 @@ impl State {
     }
 
     pub fn get_instance_extensions(&self) -> Result<Vec<CString>> {
-        let mut count: u32 = unsafe { mem::zeroed() };
-        check(&self.instance, unsafe {
-            (self.vk_fns.get_vulkan_instance_extensions)(
-                self.instance.as_raw(),
-                self.system_id,
-                0,
-                &mut count,
-                null_mut::<c_char>(),
-            )
-        })?;
-        let mut extensions_chars = Vec::<c_char>::with_capacity(count as usize);
-        check(&self.instance, unsafe {
-            (self.vk_fns.get_vulkan_instance_extensions)(
-                self.instance.as_raw(),
-                self.system_id,
-                count,
-                &mut count,
-                extensions_chars.as_mut_ptr(),
-            )
-        })?;
-        let result: Result<_, _> = unsafe {
-            CStr::from_ptr(extensions_chars.as_ptr())
-                .to_str()?
-                .rsplit(' ')
-                .map(|s| CString::new(s))
-                .collect()
-        };
+        let result: Result<_, _> = self
+            .instance
+            .vulkan_legacy_instance_extensions(self.system_id)?
+            .split(' ')
+            .map(|s| CString::new(s))
+            .collect();
         Ok(result?)
     }
 
     pub fn get_device_extensions(&self) -> Result<Vec<CString>> {
-        let mut count: u32 = unsafe { mem::zeroed() };
-        check(&self.instance, unsafe {
-            (self.vk_fns.get_vulkan_device_extensions)(
-                self.instance.as_raw(),
-                self.system_id,
-                0,
-                &mut count,
-                null_mut::<c_char>(),
-            )
-        })?;
-        let mut extensions_chars = Vec::<c_char>::with_capacity(count as usize);
-        check(&self.instance, unsafe {
-            (self.vk_fns.get_vulkan_device_extensions)(
-                self.instance.as_raw(),
-                self.system_id,
-                count,
-                &mut count,
-                extensions_chars.as_mut_ptr(),
-            )
-        })?;
-        let result: Result<_, _> = unsafe {
-            CStr::from_ptr(extensions_chars.as_ptr())
-                .to_str()?
-                .rsplit(' ')
-                .map(|s| CString::new(s))
-                .collect()
-        };
+        let result: Result<_, _> = self
+            .instance
+            .vulkan_legacy_device_extensions(self.system_id)?
+            .split(' ')
+            .map(|s| CString::new(s))
+            .collect();
         Ok(result?)
     }
 
-    pub fn get_physical_device(&self, vk_instance: vk::Instance) -> Result<vk::PhysicalDevice> {
-        let mut vk_physical_device: VkPhysicalDevice = unsafe { mem::zeroed() };
-        check(&self.instance, unsafe {
-            (self.vk_fns.get_vulkan_graphics_device)(
-                self.instance.as_raw(),
-                self.system_id,
-                vk_instance.as_raw() as VkInstance,
-                &mut vk_physical_device,
-            )
-        })?;
-        Ok(vk::PhysicalDevice::from_raw(vk_physical_device as u64))
+    // using raw stuff
+    pub fn get_physical_device(&self, vk_instance: u64) -> Result<u64> {
+        Ok(self
+            .instance
+            .vulkan_graphics_device(self.system_id, vk_instance as _)? as _)
     }
 }

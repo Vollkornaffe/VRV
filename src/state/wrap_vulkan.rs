@@ -4,8 +4,8 @@ use anyhow::{bail, Error, Result};
 use ash::{
     extensions::ext::DebugUtils,
     vk::{
-        api_version_major, api_version_minor, make_api_version, ApplicationInfo,
-        InstanceCreateInfo, QueueFlags, ValidationCacheCreateInfoEXT,
+        api_version_major, api_version_minor, make_api_version, ApplicationInfo, Handle,
+        InstanceCreateInfo, PhysicalDevice, QueueFlags,
     },
     Entry, Instance,
 };
@@ -121,7 +121,7 @@ impl State {
 
         log::info!("Creating new Vulkan State");
 
-        let vk_target_version = make_api_version(0, 1, 2, 0);
+        let vk_target_version = make_api_version(0, 1, 1, 0); // seems good enough for now
 
         let reqs = xr_base.get_graphics_requirements()?;
         let xr_vk_target_version = openxr::Version::new(
@@ -194,7 +194,8 @@ impl State {
         }
 
         // leverage OpenXR to choose for us
-        let physical_device = xr_base.get_physical_device(instance.handle())?;
+        let physical_device =
+            PhysicalDevice::from_raw(xr_base.get_physical_device(instance.handle().as_raw())?);
 
         let device_properties =
             unsafe { instance.enumerate_device_extension_properties(physical_device) }?;
