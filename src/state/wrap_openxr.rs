@@ -99,13 +99,17 @@ mod debug {
 
         match message_severity {
             DebugUtilsMessageSeverityFlagsEXT::VERBOSE => {
-                log::debug!("{} {}", type_string, message)
+                log::debug!("OPENXR: {} {}", type_string, message)
             }
-            DebugUtilsMessageSeverityFlagsEXT::INFO => log::info!("{} {}", type_string, message),
+            DebugUtilsMessageSeverityFlagsEXT::INFO => {
+                log::info!("OPENXR: {} {}", type_string, message)
+            }
             DebugUtilsMessageSeverityFlagsEXT::WARNING => {
-                log::warn!("{} {}", type_string, message)
+                log::warn!("OPENXR: {} {}", type_string, message)
             }
-            DebugUtilsMessageSeverityFlagsEXT::ERROR => log::error!("{} {}", type_string, message),
+            DebugUtilsMessageSeverityFlagsEXT::ERROR => {
+                log::error!("OPENXR: {} {}", type_string, message)
+            }
             _ => {}
         };
         false.into()

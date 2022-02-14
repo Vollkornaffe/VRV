@@ -1,7 +1,12 @@
+use std::ffi::{CStr, CString};
+
 use anyhow::{bail, Result};
 use ash::{
     extensions::ext::DebugUtils,
-    vk::{make_version, version_major, version_minor, InstanceCreateInfo},
+    vk::{
+        make_version, version_major, version_minor, ApplicationInfo, InstanceCreateInfo,
+        ValidationCacheCreateInfoEXT,
+    },
     Entry, Instance,
 };
 
@@ -15,7 +20,7 @@ mod debug {
         vk::{
             Bool32, DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT,
             DebugUtilsMessengerCallbackDataEXT, DebugUtilsMessengerCreateInfoEXT,
-            DebugUtilsMessengerCreateInfoEXTBuilder, DebugUtilsMessengerEXT, FALSE,
+            DebugUtilsMessengerEXT, FALSE,
         },
         Entry, Instance,
     };
@@ -26,7 +31,7 @@ mod debug {
     }
 
     impl Debug {
-        pub fn info() -> DebugUtilsMessengerCreateInfoEXTBuilder<'static> {
+        pub fn info() -> DebugUtilsMessengerCreateInfoEXT {
             DebugUtilsMessengerCreateInfoEXT::builder()
                 .message_severity(
                     DebugUtilsMessageSeverityFlagsEXT::WARNING
@@ -40,6 +45,7 @@ mod debug {
                         | DebugUtilsMessageTypeFlagsEXT::VALIDATION,
                 )
                 .pfn_user_callback(Some(vulkan_debug_utils_callback))
+                .build()
         }
 
         pub fn new(entry: &Entry, instance: &Instance) -> Result<Self> {
@@ -81,23 +87,32 @@ mod debug {
 
         match message_severity {
             DebugUtilsMessageSeverityFlagsEXT::VERBOSE => {
-                log::debug!("{} {}", type_string, message)
+                log::debug!("VULKAN: {} {}", type_string, message)
             }
             DebugUtilsMessageSeverityFlagsEXT::WARNING => {
-                log::warn!("{} {}", type_string, message)
+                log::warn!("VULKAN: {} {}", type_string, message)
             }
-            DebugUtilsMessageSeverityFlagsEXT::ERROR => log::error!("{} {}", type_string, message),
-            DebugUtilsMessageSeverityFlagsEXT::INFO => log::info!("{} {}", type_string, message),
+            DebugUtilsMessageSeverityFlagsEXT::ERROR => {
+                log::error!("VULKAN: {} {}", type_string, message)
+            }
+            DebugUtilsMessageSeverityFlagsEXT::INFO => {
+                log::info!("VULKAN: {} {}", type_string, message)
+            }
             _ => {}
         };
         FALSE
     }
 }
 
+#[cfg(feature = "validation_vulkan")]
+use debug::Debug;
+
 pub struct State {}
 
 impl State {
     pub fn new(xr_base: &wrap_openxr::State) -> Result<State> {
+        const VALIDATION_LAYER_NAME: &'static str = "VK_LAYER_KHRONOS_validation";
+
         log::info!("Creating new Vulkan State");
 
         let vk_target_version = make_version(1, 2, 0);
@@ -128,7 +143,29 @@ impl State {
 
         let entry = unsafe { Entry::load() }?;
 
-        //let instance = unsafe { entry.create_instance(&InstanceCreateInfo::builder(), None) }?;
+        // this pains me :(
+        let app_info = ApplicationInfo::builder()
+            .api_version(vk_target_version)
+            .build();
+        let instance_extensions = instance_extensions
+            .iter()
+            .map(|ext| ext.as_c_str().as_ptr())
+            .collect::<Vec<_>>();
+        let info = InstanceCreateInfo::builder()
+            .application_info(&app_info)
+            .enabled_extension_names(&instance_extensions);
+        #[cfg(feature = "validation_vulkan")]
+        let c_str_layer_name = CString::new(VALIDATION_LAYER_NAME).unwrap();
+        #[cfg(feature = "validation_vulkan")]
+        let c_str_layer_names = [c_str_layer_name.as_ptr()];
+        #[cfg(feature = "validation_vulkan")]
+        let mut debug_info = Debug::info();
+        #[cfg(feature = "validation_vulkan")]
+        let info = info
+            .enabled_layer_names(&c_str_layer_names)
+            .push_next(&mut debug_info);
+
+        let instance = unsafe { entry.create_instance(&info, None) }?;
 
         Ok(Self {})
     }
