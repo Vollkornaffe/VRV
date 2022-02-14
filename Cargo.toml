@@ -9,7 +9,7 @@ edition = "2021"
 log = "0.4.14"
 winit = "0.26.1"
 openxr = { version = "0.16.0", features = ["static"] }
-ash = "0.35.1+1.2.203"
+ash = { version = "0.35.1+1.2.203", features = ["loaded"] }
 anyhow = "1.0.53"
 
 [dev-dependencies]

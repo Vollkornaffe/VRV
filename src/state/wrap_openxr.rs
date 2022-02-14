@@ -245,4 +245,35 @@ impl State {
         };
         Ok(result?)
     }
+
+    pub fn get_device_extensions(&self) -> Result<Vec<CString>> {
+        let mut count: u32 = unsafe { mem::zeroed() };
+        check(&self.instance, unsafe {
+            (self.vk_fns.get_vulkan_device_extensions)(
+                self.instance.as_raw(),
+                self.system_id,
+                0,
+                &mut count,
+                null_mut::<c_char>(),
+            )
+        })?;
+        let mut extensions_chars = Vec::<c_char>::with_capacity(count as usize);
+        check(&self.instance, unsafe {
+            (self.vk_fns.get_vulkan_device_extensions)(
+                self.instance.as_raw(),
+                self.system_id,
+                count,
+                &mut count,
+                extensions_chars.as_mut_ptr(),
+            )
+        })?;
+        let result: Result<_, _> = unsafe {
+            CStr::from_ptr(extensions_chars.as_ptr())
+                .to_str()?
+                .rsplit(' ')
+                .map(|s| CString::new(s))
+                .collect()
+        };
+        Ok(result?)
+    }
 }
