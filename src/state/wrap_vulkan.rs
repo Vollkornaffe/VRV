@@ -1,5 +1,9 @@
 use anyhow::{bail, Result};
-use ash::vk::{make_version, version_major, version_minor};
+use ash::{
+    extensions::ext::DebugUtils,
+    vk::{make_version, version_major, version_minor},
+    Instance,
+};
 
 use super::wrap_openxr;
 
@@ -23,6 +27,13 @@ impl State {
         {
             bail!("OpenXR needs other Vulkan version");
         }
+
+        let instance_extensions = xr_base.get_instance_extensions()?;
+        #[cfg(feature = "validation_vulkan")]
+        let instance_extensions =
+            [instance_extensions.as_slice(), &[DebugUtils::name().into()]].concat();
+
+        log::info!("Vulkan instance extensions: {:?}", instance_extensions);
 
         Ok(Self {})
     }
