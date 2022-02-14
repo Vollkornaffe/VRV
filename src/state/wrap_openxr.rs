@@ -1,5 +1,13 @@
-use anyhow::Result;
-use openxr::{ApplicationInfo, Entry, ExtensionSet, Instance};
+use anyhow::{Result, bail};
+use openxr::{ApplicationInfo, Entry, ExtensionSet, Instance, sys, FormFactor, ViewConfigurationType, EnvironmentBlendMode, SystemId, raw::VulkanEnableKHR};
+
+fn check(instance: &Instance, xr_result: sys::Result) -> Result<()> {
+    if xr_result != sys::Result::SUCCESS {
+        bail!("{:?}", instance.result_to_string(xr_result));
+    }
+    Ok(())
+}
+
 
 #[cfg(feature = "validation_openxr")]
 mod debug {
@@ -13,6 +21,8 @@ mod debug {
         DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT, Entry, Instance,
         StructureType,
     };
+
+    use super::check;
 
     pub struct Debug {
         pub debug_utils_loader: DebugUtilsEXT,
@@ -37,13 +47,13 @@ mod debug {
                 user_data: std::ptr::null_mut(),
             };
             let mut debug_messenger = DebugUtilsMessengerEXT::NULL;
-            unsafe {
+            check(instance, unsafe {
                 (debug_utils_loader.create_debug_utils_messenger)(
                     instance.as_raw(),
                     &info,
                     &mut debug_messenger,
                 )
-            };
+            })?;
             Ok(Self {
                 debug_utils_loader,
                 debug_messenger,
@@ -98,8 +108,8 @@ pub struct State {
 
     pub entry: Entry,
     pub instance: Instance,
-    //pub system_id: SystemId,
-    //pub vk_fns: VulkanEnableKHR,
+    pub system_id: SystemId,
+    pub vk_fns: VulkanEnableKHR,
 }
 
 impl State {
@@ -149,14 +159,37 @@ impl State {
         #[cfg(feature = "validation_openxr")]
         let debug = Debug::new(&entry, &instance)?;
 
+        let instance_props = instance.properties()?;
+        log::info!(
+            "loaded OpenXR runtime: {} {}",
+            instance_props.runtime_name,
+            instance_props.runtime_version
+        );
+
+        // Request a form factor from the device (HMD, Handheld, etc.)
+        let system_id = instance.system(FormFactor::HEAD_MOUNTED_DISPLAY)?;
+        if instance
+            .enumerate_environment_blend_modes(
+                system_id,
+                ViewConfigurationType::PRIMARY_STEREO,
+            )?
+            .into_iter()
+            .find(|&mode| mode == EnvironmentBlendMode::OPAQUE)
+            == None
+        {
+            bail!("Only OPAQUE mode allowed");
+        }
+
+        let vk_fns = unsafe { VulkanEnableKHR::load(&entry, instance.as_raw()) }?;
+
         Ok(State {
             #[cfg(feature = "validation_openxr")]
             debug,
 
             entry,
             instance,
-            //system_id,
-            //vk_fns,
+            system_id,
+            vk_fns,
         })
     }
 }
