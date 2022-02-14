@@ -5,7 +5,7 @@ use ash::{
     extensions::ext::DebugUtils,
     vk::{
         make_version, version_major, version_minor, ApplicationInfo, InstanceCreateInfo,
-        ValidationCacheCreateInfoEXT,
+        QueueFlags, ValidationCacheCreateInfoEXT,
     },
     Entry, Instance,
 };
@@ -214,6 +214,22 @@ impl State {
             bail!("Vulkan phyiscal device doesn't support version");
         }
 
+        let queue_family_index =
+            unsafe { instance.get_physical_device_queue_family_properties(physical_device) }
+                .into_iter()
+                .enumerate()
+                .filter_map(|(queue_family_index, info)| {
+                    if info
+                        .queue_flags
+                        .contains(QueueFlags::GRAPHICS | QueueFlags::TRANSFER)
+                    {
+                        Some(queue_family_index as u32)
+                    } else {
+                        None
+                    }
+                })
+                .next()
+                .expect("Vulkan device has no graphics queue");
 
         Ok(Self {
             #[cfg(feature = "validation_vulkan")]
