@@ -1,5 +1,12 @@
-use anyhow::{Result, bail};
-use openxr::{ApplicationInfo, Entry, ExtensionSet, Instance, sys, FormFactor, ViewConfigurationType, EnvironmentBlendMode, SystemId, raw::VulkanEnableKHR};
+use std::mem;
+
+use anyhow::{bail, Result};
+use openxr::{
+    raw::VulkanEnableKHR,
+    sys::{self, GraphicsRequirementsVulkanKHR},
+    ApplicationInfo, Entry, EnvironmentBlendMode, ExtensionSet, FormFactor, Instance, SystemId,
+    ViewConfigurationType,
+};
 
 fn check(instance: &Instance, xr_result: sys::Result) -> Result<()> {
     if xr_result != sys::Result::SUCCESS {
@@ -7,7 +14,6 @@ fn check(instance: &Instance, xr_result: sys::Result) -> Result<()> {
     }
     Ok(())
 }
-
 
 #[cfg(feature = "validation_openxr")]
 mod debug {
@@ -64,7 +70,9 @@ mod debug {
     impl Drop for Debug {
         fn drop(&mut self) {
             // not going to check that result
-            let _ = unsafe { (self.debug_utils_loader.destroy_debug_utils_messenger)(self.debug_messenger) };
+            let _ = unsafe {
+                (self.debug_utils_loader.destroy_debug_utils_messenger)(self.debug_messenger)
+            };
         }
     }
 
@@ -169,10 +177,7 @@ impl State {
         // Request a form factor from the device (HMD, Handheld, etc.)
         let system_id = instance.system(FormFactor::HEAD_MOUNTED_DISPLAY)?;
         if instance
-            .enumerate_environment_blend_modes(
-                system_id,
-                ViewConfigurationType::PRIMARY_STEREO,
-            )?
+            .enumerate_environment_blend_modes(system_id, ViewConfigurationType::PRIMARY_STEREO)?
             .into_iter()
             .find(|&mode| mode == EnvironmentBlendMode::OPAQUE)
             == None
@@ -191,5 +196,17 @@ impl State {
             system_id,
             vk_fns,
         })
+    }
+
+    pub fn get_graphics_requirements(&self) -> Result<GraphicsRequirementsVulkanKHR> {
+        let mut graphics_requirements: GraphicsRequirementsVulkanKHR = unsafe { mem::zeroed() };
+        check(&self.instance, unsafe {
+            (self.vk_fns.get_vulkan_graphics_requirements)(
+                self.instance.as_raw(),
+                self.system_id,
+                &mut graphics_requirements,
+            )
+        })?;
+        Ok(graphics_requirements)
     }
 }

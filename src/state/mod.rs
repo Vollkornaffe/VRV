@@ -1,8 +1,8 @@
 use anyhow::Result;
 
-mod wrap_openxr;
-mod wrap_vulkan;
-mod wrap_winit;
+pub mod wrap_openxr;
+pub mod wrap_vulkan;
+pub mod wrap_winit;
 
 pub struct State {
     window: wrap_winit::State,
@@ -13,10 +13,15 @@ pub struct State {
 impl State {
     pub fn new() -> Result<Self> {
         log::info!("Creating new VRV state");
+
+        let window = wrap_winit::State::new();
+        let openxr = wrap_openxr::State::new()?;
+        let vulkan = wrap_vulkan::State::new(&openxr)?;
+
         Ok(Self {
-            window: wrap_winit::State::new(),
-            openxr: wrap_openxr::State::new()?,
-            vulkan: wrap_vulkan::State::new(),
+            window,
+            openxr,
+            vulkan,
         })
     }
 }
