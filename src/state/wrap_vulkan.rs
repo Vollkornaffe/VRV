@@ -194,9 +194,18 @@ impl State {
         let device_properties =
             unsafe { instance.enumerate_device_extension_properties(physical_device) }?;
         for prop in &device_properties {
-            log::info!("{:?}", unsafe {
+            log::trace!("{:?}", unsafe {
                 CStr::from_ptr(prop.extension_name.as_ptr())
             });
+        }
+        for req_ext in &device_extensions {
+            if device_properties
+                .iter()
+                .find(|prop| unsafe { CStr::from_ptr(prop.extension_name.as_ptr()) } == req_ext.as_c_str())
+                .is_none()
+            {
+                bail!("Physical device doesn't support extension: {:?}", req_ext);
+            }
         }
 
         Ok(Self {
