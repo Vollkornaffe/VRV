@@ -212,16 +212,8 @@ impl State {
         })
     }
 
-    pub fn get_graphics_requirements(&self) -> Result<GraphicsRequirementsVulkanKHR> {
-        let mut graphics_requirements: GraphicsRequirementsVulkanKHR = unsafe { mem::zeroed() };
-        check(&self.instance, unsafe {
-            (self.vk_fns.get_vulkan_graphics_requirements)(
-                self.instance.as_raw(),
-                self.system_id,
-                &mut graphics_requirements,
-            )
-        })?;
-        Ok(graphics_requirements)
+    pub fn get_graphics_requirements(&self) -> Result<Requirements> {
+        Ok(self.instance.graphics_requirements::<Vulkan>(self.system_id)?)
     }
 
     pub fn get_instance_extensions(&self) -> Result<Vec<CString>> {
