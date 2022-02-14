@@ -188,7 +188,16 @@ impl State {
             });
         }
 
+        // leverage OpenXR to choose for us
+        let physical_device = xr_base.get_physical_device(instance.handle())?;
 
+        let device_properties =
+            unsafe { instance.enumerate_device_extension_properties(physical_device) }?;
+        for prop in &device_properties {
+            log::info!("{:?}", unsafe {
+                CStr::from_ptr(prop.extension_name.as_ptr())
+            });
+        }
 
         Ok(Self {
             #[cfg(feature = "validation_vulkan")]

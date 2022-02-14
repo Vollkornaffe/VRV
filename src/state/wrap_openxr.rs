@@ -6,9 +6,14 @@ use std::{
 };
 
 use anyhow::{bail, Result};
+use ash::vk::{self, Handle};
 use openxr::{
     raw::VulkanEnableKHR,
-    sys::{self, GraphicsRequirementsVulkanKHR},
+    sys::{
+        self,
+        platform::{VkInstance, VkPhysicalDevice},
+        GraphicsRequirementsVulkanKHR,
+    },
     ApplicationInfo, Entry, EnvironmentBlendMode, ExtensionSet, FormFactor, Instance, SystemId,
     ViewConfigurationType,
 };
@@ -279,5 +284,18 @@ impl State {
                 .collect()
         };
         Ok(result?)
+    }
+
+    pub fn get_physical_device(&self, vk_instance: vk::Instance) -> Result<vk::PhysicalDevice> {
+        let mut vk_physical_device: VkPhysicalDevice = unsafe { mem::zeroed() };
+        check(&self.instance, unsafe {
+            (self.vk_fns.get_vulkan_graphics_device)(
+                self.instance.as_raw(),
+                self.system_id,
+                vk_instance.as_raw() as VkInstance,
+                &mut vk_physical_device,
+            )
+        })?;
+        Ok(vk::PhysicalDevice::from_raw(vk_physical_device as u64))
     }
 }
