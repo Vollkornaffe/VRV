@@ -143,15 +143,6 @@ impl State {
 
         log::trace!("Vulkan instance extensions: {:?}", instance_extensions);
 
-        // this debug marker extension is now part of debug utils and isn't supported by my card
-        let device_extensions: Vec<CString> = xr_state
-            .get_device_extensions()?
-            .into_iter()
-            .filter(|ext| *ext != CString::new("VK_EXT_debug_marker").unwrap())
-            .collect();
-
-        log::trace!("Vulkan device extensions: {:?}", device_extensions);
-
         let entry = unsafe { Entry::load() }?;
 
         // this pains me :(
@@ -197,16 +188,25 @@ impl State {
         let physical_device =
             PhysicalDevice::from_raw(xr_state.get_physical_device(instance.handle().as_raw())?);
 
-        let device_properties =
+        let physical_device_extension_properties =
             unsafe { instance.enumerate_device_extension_properties(physical_device) }?;
-        for prop in &device_properties {
+        for prop in &physical_device_extension_properties {
             log::trace!("{:?}", unsafe {
                 CStr::from_ptr(prop.extension_name.as_ptr())
             });
         }
 
+        // this debug marker extension is now part of debug utils and isn't supported by my card
+        let device_extensions: Vec<CString> = xr_state
+            .get_device_extensions()?
+            .into_iter()
+            .filter(|ext| *ext != CString::new("VK_EXT_debug_marker").unwrap())
+            .collect();
+
+        log::trace!("Vulkan device extensions: {:?}", device_extensions);
+
         for req_ext in &device_extensions {
-            if device_properties
+            if physical_device_extension_properties
                 .iter()
                 .find(|prop| unsafe { CStr::from_ptr(prop.extension_name.as_ptr()) } == req_ext.as_c_str())
                 .is_none()
