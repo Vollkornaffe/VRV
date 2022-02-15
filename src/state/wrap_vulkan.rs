@@ -2,10 +2,10 @@ use std::ffi::{CStr, CString};
 
 use anyhow::{bail, Error, Result};
 use ash::{
-    extensions::ext::DebugUtils,
+    extensions::{ext::DebugUtils, khr::Surface},
     vk::{
         api_version_major, api_version_minor, make_api_version, ApplicationInfo, Handle,
-        InstanceCreateInfo, PhysicalDevice, QueueFlags,
+        InstanceCreateInfo, PhysicalDevice, QueueFlags, SurfaceKHR,
     },
     Entry, Instance,
 };
@@ -107,13 +107,22 @@ mod debug {
 #[cfg(feature = "validation_vulkan")]
 use debug::Debug;
 
-// XXX order of members is important, they are dropped in the order they are listed
 pub struct State {
-    #[cfg(feature = "validation_vulkan")]
-    debug: Debug,
-
     entry: Entry,
     instance: Instance,
+
+    #[cfg(feature = "validation_vulkan")]
+    debug: Option<Debug>,
+
+    surface_destroyer: Surface,
+    surface: SurfaceKHR,
+}
+
+impl Drop for State {
+    fn drop(&mut self) {
+        unsafe { self.surface_destroyer.destroy_surface(self.surface, None) };
+        self.debug = None;
+    }
 }
 
 impl State {
@@ -176,8 +185,10 @@ impl State {
         let instance = unsafe { entry.create_instance(&info, None) }?;
 
         #[cfg(feature = "validation_vulkan")]
-        let debug = Debug::new(&entry, &instance)?;
+        let debug = Some(Debug::new(&entry, &instance)?);
 
+        // actually more a "loader", only used for destruction here though
+        let surface_destroyer = Surface::new(&entry, &instance);
         let surface =
             unsafe { ash_window::create_surface(&entry, &instance, &window_state.window, None) }?;
 
@@ -259,11 +270,14 @@ impl State {
         log::trace!("Using queue nr. {}", queue_family_index);
 
         Ok(Self {
+            entry,
+            instance,
+
             #[cfg(feature = "validation_vulkan")]
             debug,
 
-            entry,
-            instance,
+            surface_destroyer,
+            surface,
         })
     }
 }
