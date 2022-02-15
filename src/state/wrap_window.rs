@@ -1,3 +1,6 @@
+use std::os::raw::c_char;
+
+use anyhow::Result;
 use winit::{
     event_loop::EventLoop,
     platform::windows::EventLoopExtWindows,
@@ -5,8 +8,8 @@ use winit::{
 };
 
 pub struct State {
-    event_loop: EventLoop<() /* user event type */>,
-    window: Window,
+    pub event_loop: EventLoop<() /* user event type */>,
+    pub window: Window,
 }
 
 impl State {
@@ -14,5 +17,12 @@ impl State {
         let event_loop = EventLoop::new_any_thread();
         let window = WindowBuilder::new().build(&event_loop).unwrap();
         Self { event_loop, window }
+    }
+
+    pub fn get_instance_extensions(&self) -> Result<Vec<*const c_char>> {
+        Ok(ash_window::enumerate_required_extensions(&self.window)?
+            .iter()
+            .map(|x| x.as_ptr())
+            .collect())
     }
 }
