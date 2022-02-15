@@ -1,6 +1,7 @@
-use std::os::raw::c_char;
+use std::ffi::CString;
 
 use anyhow::Result;
+use ash::vk::SurfaceKHR;
 use winit::{
     event_loop::EventLoop,
     platform::windows::EventLoopExtWindows,
@@ -19,10 +20,10 @@ impl State {
         Self { event_loop, window }
     }
 
-    pub fn get_instance_extensions(&self) -> Result<Vec<*const c_char>> {
+    pub fn get_instance_extensions(&self) -> Result<Vec<CString>> {
         Ok(ash_window::enumerate_required_extensions(&self.window)?
             .iter()
-            .map(|x| x.as_ptr())
+            .map(|&x| x.into())
             .collect())
     }
 }

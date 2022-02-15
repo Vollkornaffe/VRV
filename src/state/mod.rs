@@ -16,7 +16,7 @@ impl State {
 
         let window = wrap_window::State::new();
         let openxr = wrap_openxr::State::new()?;
-        let vulkan = wrap_vulkan::State::new(&openxr)?;
+        let vulkan = wrap_vulkan::State::new(&window, &openxr)?;
 
         Ok(Self {
             window,

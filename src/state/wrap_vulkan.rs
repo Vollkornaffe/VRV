@@ -10,7 +10,7 @@ use ash::{
     Entry, Instance,
 };
 
-use super::wrap_openxr;
+use super::{wrap_openxr, wrap_window};
 
 #[cfg(feature = "validation_vulkan")]
 mod debug {
@@ -107,6 +107,7 @@ mod debug {
 #[cfg(feature = "validation_vulkan")]
 use debug::Debug;
 
+// XXX order of members is important, they are dropped in the order they are listed
 pub struct State {
     #[cfg(feature = "validation_vulkan")]
     debug: Debug,
@@ -116,7 +117,7 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(xr_state: &wrap_openxr::State) -> Result<State> {
+    pub fn new(window_state: &wrap_window::State, xr_state: &wrap_openxr::State) -> Result<State> {
         const VALIDATION_LAYER_NAME: &'static str = "VK_LAYER_KHRONOS_validation";
 
         log::info!("Creating new Vulkan State");
@@ -136,16 +137,19 @@ impl State {
             bail!("OpenXR needs other Vulkan version");
         }
 
-        let instance_extensions = xr_state.get_instance_extensions()?;
-        #[cfg(feature = "validation_vulkan")]
-        let instance_extensions =
-            [instance_extensions.as_slice(), &[DebugUtils::name().into()]].concat();
+        let instance_extensions = [
+            window_state.get_instance_extensions()?,
+            xr_state.get_instance_extensions()?,
+            // hehe sneaky
+            #[cfg(feature = "validation_vulkan")]
+            vec![DebugUtils::name().into()],
+        ]
+        .concat();
 
         log::trace!("Vulkan instance extensions: {:?}", instance_extensions);
 
         let entry = unsafe { Entry::load() }?;
 
-        // this pains me :(
         let app_info = ApplicationInfo::builder()
             .api_version(vk_target_version)
             .build();
@@ -156,6 +160,8 @@ impl State {
         let info = InstanceCreateInfo::builder()
             .application_info(&app_info)
             .enabled_extension_names(&instance_extensions);
+
+        // this pains me :(
         #[cfg(feature = "validation_vulkan")]
         let c_str_layer_name = CString::new(VALIDATION_LAYER_NAME).unwrap();
         #[cfg(feature = "validation_vulkan")]
@@ -171,6 +177,9 @@ impl State {
 
         #[cfg(feature = "validation_vulkan")]
         let debug = Debug::new(&entry, &instance)?;
+
+        let surface =
+            unsafe { ash_window::create_surface(&entry, &instance, &window_state.window, None) }?;
 
         let physical_device_enumeration = unsafe { instance.enumerate_physical_devices() }?;
         for (i, physical_device) in physical_device_enumeration.iter().enumerate() {
