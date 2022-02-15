@@ -116,14 +116,14 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(xr_base: &wrap_openxr::State) -> Result<State> {
+    pub fn new(xr_state: &wrap_openxr::State) -> Result<State> {
         const VALIDATION_LAYER_NAME: &'static str = "VK_LAYER_KHRONOS_validation";
 
         log::info!("Creating new Vulkan State");
 
         let vk_target_version = make_api_version(0, 1, 1, 0); // seems good enough for now
 
-        let reqs = xr_base.get_graphics_requirements()?;
+        let reqs = xr_state.get_graphics_requirements()?;
         let xr_vk_target_version = openxr::Version::new(
             api_version_major(vk_target_version) as u16,
             api_version_minor(vk_target_version) as u16,
@@ -136,7 +136,7 @@ impl State {
             bail!("OpenXR needs other Vulkan version");
         }
 
-        let instance_extensions = xr_base.get_instance_extensions()?;
+        let instance_extensions = xr_state.get_instance_extensions()?;
         #[cfg(feature = "validation_vulkan")]
         let instance_extensions =
             [instance_extensions.as_slice(), &[DebugUtils::name().into()]].concat();
@@ -144,7 +144,7 @@ impl State {
         log::trace!("Vulkan instance extensions: {:?}", instance_extensions);
 
         // this debug marker extension is now part of debug utils and isn't supported by my card
-        let device_extensions: Vec<CString> = xr_base
+        let device_extensions: Vec<CString> = xr_state
             .get_device_extensions()?
             .into_iter()
             .filter(|ext| *ext != CString::new("VK_EXT_debug_marker").unwrap())
@@ -195,7 +195,7 @@ impl State {
 
         // leverage OpenXR to choose for us
         let physical_device =
-            PhysicalDevice::from_raw(xr_base.get_physical_device(instance.handle().as_raw())?);
+            PhysicalDevice::from_raw(xr_state.get_physical_device(instance.handle().as_raw())?);
 
         let device_properties =
             unsafe { instance.enumerate_device_extension_properties(physical_device) }?;
