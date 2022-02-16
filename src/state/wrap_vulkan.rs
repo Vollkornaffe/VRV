@@ -11,10 +11,11 @@ use ash::{
     },
     vk::{
         api_version_major, api_version_minor, make_api_version, ApplicationInfo, ColorSpaceKHR,
-        CommandPoolCreateFlags, CommandPoolCreateInfo, CompositeAlphaFlagsKHR, DeviceCreateInfo,
-        DeviceQueueCreateInfo, Extent2D, Format, Handle, ImageUsageFlags, InstanceCreateInfo,
-        PhysicalDevice, PresentModeKHR, QueueFlags, SharingMode, SurfaceCapabilitiesKHR,
-        SurfaceFormatKHR, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR,
+        CommandPoolCreateFlags, CommandPoolCreateInfo, CompositeAlphaFlagsKHR,
+        DebugUtilsObjectNameInfoEXT, DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format,
+        Handle, ImageUsageFlags, InstanceCreateInfo, PhysicalDevice, PresentModeKHR, QueueFlags,
+        SharingMode, SurfaceCapabilitiesKHR, SurfaceFormatKHR, SurfaceKHR, SwapchainCreateInfoKHR,
+        SwapchainKHR,
     },
     Device, Entry, Instance,
 };
@@ -29,14 +30,14 @@ mod debug {
         vk::{
             Bool32, DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT,
             DebugUtilsMessengerCallbackDataEXT, DebugUtilsMessengerCreateInfoEXT,
-            DebugUtilsMessengerEXT, FALSE,
+            DebugUtilsMessengerEXT, DebugUtilsObjectNameInfoEXT, Handle, FALSE,
         },
         Entry, Instance,
     };
 
     pub struct Debug {
-        debug_utils_loader: DebugUtils,
-        debug_messenger: DebugUtilsMessengerEXT,
+        pub loader: DebugUtils,
+        pub messenger: DebugUtilsMessengerEXT,
     }
 
     impl Debug {
@@ -58,22 +59,18 @@ mod debug {
         }
 
         pub fn new(entry: &Entry, instance: &Instance) -> Result<Self> {
-            let debug_utils_loader = DebugUtils::new(entry, instance);
-            let debug_messenger =
-                unsafe { debug_utils_loader.create_debug_utils_messenger(&Self::info(), None) }?;
+            let loader = DebugUtils::new(entry, instance);
+            let messenger = unsafe { loader.create_debug_utils_messenger(&Self::info(), None) }?;
 
-            Ok(Self {
-                debug_utils_loader,
-                debug_messenger,
-            })
+            Ok(Self { loader, messenger })
         }
     }
 
     impl Drop for Debug {
         fn drop(&mut self) {
             unsafe {
-                self.debug_utils_loader
-                    .destroy_debug_utils_messenger(self.debug_messenger, None)
+                self.loader
+                    .destroy_debug_utils_messenger(self.messenger, None)
             }
         }
     }
@@ -476,4 +473,28 @@ impl State {
             swapchain_related: ManuallyDrop::new(swapchain_related),
         })
     }
+
+    #[cfg(feature = "validation_vulkan")]
+    pub fn name_object<T: Clone + Handle>(&self, ash_object: &T, name: String) {
+        let c_str = std::ffi::CString::new(name).unwrap();
+        log::debug!(
+            "Naming object {:?} of type {:?}: {:?}",
+            ash_object.clone().as_raw(),
+            T::TYPE,
+            c_str
+        );
+
+        let name_info = DebugUtilsObjectNameInfoEXT::builder()
+            .object_type(T::TYPE)
+            .object_handle(ash_object.clone().as_raw())
+            .object_name(&c_str);
+        unsafe {
+            self.debug
+                .loader
+                .debug_utils_set_object_name(self.device.handle(), &name_info)
+        }
+        .unwrap();
+    }
+    #[cfg(not(feature = "validation_vulkan"))]
+    pub fn name_object<T: Clone + Handle>(&self, _: &T, _: String) {}
 }
