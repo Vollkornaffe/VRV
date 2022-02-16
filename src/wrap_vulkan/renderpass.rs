@@ -73,7 +73,18 @@ pub fn create_window_render_pass(base: &Base, swapchain_format: Format) -> Resul
         base.device.create_render_pass(
             &RenderPassCreateInfo::builder()
                 .attachments(&attachments(base, swapchain_format)?)
-                .subpasses(&subpasses())
+                .subpasses(&[SubpassDescription::builder()
+                    .pipeline_bind_point(PipelineBindPoint::GRAPHICS)
+                    .color_attachments(&[AttachmentReference::builder()
+                        .attachment(0)
+                        .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+                        .build()])
+                    .depth_stencil_attachment(
+                        &AttachmentReference::builder()
+                            .attachment(1)
+                            .layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL),
+                    )
+                    .build()])
                 .dependencies(&dependencies()),
             None,
         )
