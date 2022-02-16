@@ -1,11 +1,15 @@
-use std::ffi::{CStr, CString};
+use std::{
+    ffi::{CStr, CString},
+    mem::ManuallyDrop,
+};
 
 use anyhow::{bail, Error, Result};
 use ash::{
     extensions::{ext::DebugUtils, khr::Surface},
     vk::{
         api_version_major, api_version_minor, make_api_version, ApplicationInfo, Handle,
-        InstanceCreateInfo, PhysicalDevice, QueueFlags, SurfaceKHR,
+        InstanceCreateInfo, PhysicalDevice, PresentModeKHR, QueueFlags, SurfaceCapabilitiesKHR,
+        SurfaceFormatKHR, SurfaceKHR,
     },
     Entry, Instance,
 };
@@ -34,15 +38,15 @@ mod debug {
         pub fn info() -> DebugUtilsMessengerCreateInfoEXT {
             DebugUtilsMessengerCreateInfoEXT::builder()
                 .message_severity(
-                    DebugUtilsMessageSeverityFlagsEXT::WARNING
-                        | DebugUtilsMessageSeverityFlagsEXT::VERBOSE
+                    DebugUtilsMessageSeverityFlagsEXT::VERBOSE
                         | DebugUtilsMessageSeverityFlagsEXT::INFO
+                        | DebugUtilsMessageSeverityFlagsEXT::WARNING
                         | DebugUtilsMessageSeverityFlagsEXT::ERROR,
                 )
                 .message_type(
                     DebugUtilsMessageTypeFlagsEXT::GENERAL
-                        | DebugUtilsMessageTypeFlagsEXT::PERFORMANCE
-                        | DebugUtilsMessageTypeFlagsEXT::VALIDATION,
+                        | DebugUtilsMessageTypeFlagsEXT::VALIDATION
+                        | DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
                 )
                 .pfn_user_callback(Some(vulkan_debug_utils_callback))
                 .build()
@@ -107,21 +111,39 @@ mod debug {
 #[cfg(feature = "validation_vulkan")]
 use debug::Debug;
 
+struct SurfaceRelated {
+    pub surface_loader: Surface,
+    pub surface: SurfaceKHR,
+    pub capabilities: SurfaceCapabilitiesKHR,
+    pub formats: Vec<SurfaceFormatKHR>,
+    pub present_modes: Vec<PresentModeKHR>,
+}
+
+impl Drop for SurfaceRelated {
+    fn drop(&mut self) {
+        unsafe { self.surface_loader.destroy_surface(self.surface, None) };
+    }
+}
+
 pub struct State {
-    entry: Entry,
-    instance: Instance,
+    entry: ManuallyDrop<Entry>,
+    instance: ManuallyDrop<Instance>,
 
     #[cfg(feature = "validation_vulkan")]
-    debug: Option<Debug>,
+    debug: ManuallyDrop<Debug>,
 
-    surface_destroyer: Surface,
-    surface: SurfaceKHR,
+    surface_related: ManuallyDrop<SurfaceRelated>,
 }
 
 impl Drop for State {
     fn drop(&mut self) {
-        unsafe { self.surface_destroyer.destroy_surface(self.surface, None) };
-        self.debug = None;
+        unsafe {
+            ManuallyDrop::drop(&mut self.surface_related);
+            #[cfg(feature = "validation_vulkan")]
+            ManuallyDrop::drop(&mut self.debug);
+            ManuallyDrop::drop(&mut self.instance);
+            ManuallyDrop::drop(&mut self.entry);
+        }
     }
 }
 
@@ -185,12 +207,7 @@ impl State {
         let instance = unsafe { entry.create_instance(&info, None) }?;
 
         #[cfg(feature = "validation_vulkan")]
-        let debug = Some(Debug::new(&entry, &instance)?);
-
-        // actually more a "loader", only used for destruction here though
-        let surface_destroyer = Surface::new(&entry, &instance);
-        let surface =
-            unsafe { ash_window::create_surface(&entry, &instance, &window_state.window, None) }?;
+        let debug = Debug::new(&entry, &instance)?;
 
         let physical_device_enumeration = unsafe { instance.enumerate_physical_devices() }?;
         for (i, physical_device) in physical_device_enumeration.iter().enumerate() {
@@ -208,6 +225,32 @@ impl State {
         let physical_device =
             PhysicalDevice::from_raw(xr_state.get_physical_device(instance.handle().as_raw())?);
 
+        let surface_related = {
+            let surface_loader = Surface::new(&entry, &instance);
+            let surface = unsafe {
+                ash_window::create_surface(&entry, &instance, &window_state.window, None)
+            }?;
+            let capabilities = unsafe {
+                surface_loader.get_physical_device_surface_capabilities(physical_device, surface)
+            }?;
+            let formats = unsafe {
+                surface_loader.get_physical_device_surface_formats(physical_device, surface)
+            }?;
+            let present_modes = unsafe {
+                surface_loader.get_physical_device_surface_present_modes(physical_device, surface)
+            }?;
+            if formats.is_empty() || present_modes.is_empty() {
+                bail!("Physical device incompatible with surface")
+            }
+            SurfaceRelated {
+                surface_loader,
+                surface,
+                capabilities,
+                formats,
+                present_modes,
+            }
+        };
+
         let physical_device_extension_properties =
             unsafe { instance.enumerate_device_extension_properties(physical_device) }?;
         for prop in &physical_device_extension_properties {
@@ -216,12 +259,11 @@ impl State {
             });
         }
 
-        // this debug marker extension is now part of debug utils and isn't supported by my card
-        let device_extensions: Vec<CString> = xr_state
-            .get_device_extensions()?
-            .into_iter()
-            .filter(|ext| *ext != CString::new("VK_EXT_debug_marker").unwrap())
-            .collect();
+        let device_extensions: Vec<CString> = [
+            xr_state.get_device_extensions()?,
+            window_state.get_device_extensions(),
+        ]
+        .concat();
 
         log::trace!("Vulkan device extensions: {:?}", device_extensions);
 
@@ -238,46 +280,51 @@ impl State {
             unsafe { instance.get_physical_device_properties(physical_device) };
         if physical_device_properties.api_version < vk_target_version {
             unsafe { instance.destroy_instance(None) };
-            bail!("Vulkan phyiscal device doesn't support version");
+            bail!("Vulkan phyiscal device doesn't support target version");
         }
 
         let queue_family_index =
             unsafe { instance.get_physical_device_queue_family_properties(physical_device) }
                 .into_iter()
                 .enumerate()
-                .filter_map(|(queue_family_index, info)| {
-                    log::trace!(
-                "{}: GRAPHICS: {:?}, COMPUTE: {:?}, TRANSFER: {:?}, SPARSE_BINDING: {:?}, #: {}",
-                queue_family_index,
-                info.queue_flags.contains(QueueFlags::GRAPHICS),
-                info.queue_flags.contains(QueueFlags::COMPUTE),
-                info.queue_flags.contains(QueueFlags::TRANSFER),
-                info.queue_flags.contains(QueueFlags::SPARSE_BINDING),
-                info.queue_count,
-            );
-
-                    if info
-                        .queue_flags
-                        .contains(QueueFlags::GRAPHICS | QueueFlags::TRANSFER)
-                    {
-                        Some(queue_family_index as u32)
+                .map(|(queue_family_index, info)| -> Result<bool> {
+                    let supp_graphics = info.queue_flags.contains(QueueFlags::GRAPHICS);
+                    //let supp_compute = info.queue_flags.contains(QueueFlags::COMPUTE);
+                    let supp_transfer = info.queue_flags.contains(QueueFlags::TRANSFER);
+                    //let supp_sparse = info.queue_flags.contains(QueueFlags::SPARSE_BINDING);
+                    let supp_present = unsafe {
+                        surface_related
+                            .surface_loader
+                            .get_physical_device_surface_support(
+                                physical_device,
+                                queue_family_index as u32,
+                                surface_related.surface,
+                            )
+                    }?;
+                    Ok(supp_graphics && supp_present && supp_transfer)
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .iter()
+                .enumerate()
+                .find_map(|(queue_family_index, suitable)| {
+                    if *suitable {
+                        Some(queue_family_index)
                     } else {
                         None
                     }
                 })
-                .last() // this is to log each
                 .ok_or(Error::msg("Vulkan device has no suitable queue"))?;
+
         log::trace!("Using queue nr. {}", queue_family_index);
 
         Ok(Self {
-            entry,
-            instance,
+            entry: ManuallyDrop::new(entry),
+            instance: ManuallyDrop::new(instance),
 
             #[cfg(feature = "validation_vulkan")]
-            debug,
+            debug: ManuallyDrop::new(debug),
 
-            surface_destroyer,
-            surface,
+            surface_related: ManuallyDrop::new(surface_related),
         })
     }
 }

@@ -234,6 +234,8 @@ impl State {
             .vulkan_legacy_device_extensions(self.system_id)?
             .split(' ')
             .map(|s| CString::new(s))
+            // this debug marker extension is now part of debug utils and isn't supported by my card
+            .filter(|ext| *ext != CString::new("VK_EXT_debug_marker"))
             .collect();
         Ok(result?)
     }

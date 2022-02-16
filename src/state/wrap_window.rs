@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
 use anyhow::Result;
-use ash::vk::SurfaceKHR;
+use ash::extensions::khr::Swapchain;
 use winit::{
     event_loop::EventLoop,
     platform::windows::EventLoopExtWindows,
@@ -25,5 +25,9 @@ impl State {
             .iter()
             .map(|&x| x.into())
             .collect())
+    }
+
+    pub fn get_device_extensions(&self) -> Vec<CString> {
+        vec![Swapchain::name().into()]
     }
 }
