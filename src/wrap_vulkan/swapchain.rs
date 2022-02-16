@@ -5,11 +5,10 @@ use ash::{
         ColorSpaceKHR, CompositeAlphaFlagsKHR, Extent2D, Format, ImageUsageFlags, PresentModeKHR,
         SharingMode, SurfaceFormatKHR, SwapchainCreateInfoKHR, SwapchainKHR,
     },
-    Device, Instance,
 };
 use winit::dpi::PhysicalSize;
 
-use super::{Base, SurfaceRelated};
+use super::Base;
 pub struct SwapchainRelated {
     pub surface_format: SurfaceFormatKHR,
     pub extent: Extent2D,
@@ -32,7 +31,8 @@ impl SwapchainRelated {
             .formats
             .iter()
             .find(|f| {
-                f.format == Format::R8G8B8A8_UNORM && f.color_space == ColorSpaceKHR::SRGB_NONLINEAR
+                (f.format == Format::R8G8B8A8_UNORM || f.format == Format::B8G8R8A8_UNORM)
+                    && f.color_space == ColorSpaceKHR::SRGB_NONLINEAR
             })
             .ok_or(Error::msg("No suitable format"))?;
         let extent = if base.surface_related.capabilities.current_extent.height == std::u32::MAX {

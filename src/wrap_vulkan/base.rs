@@ -2,6 +2,7 @@ use anyhow::{bail, Error, Result};
 use std::{
     ffi::{CStr, CString},
     mem::ManuallyDrop,
+    ops::BitAnd,
 };
 use winit::window::Window;
 
@@ -9,8 +10,8 @@ use ash::{
     extensions::{ext::DebugUtils, khr::Swapchain},
     vk::{
         api_version_major, api_version_minor, make_api_version, ApplicationInfo,
-        DebugUtilsObjectNameInfoEXT, DeviceCreateInfo, DeviceQueueCreateInfo, Handle,
-        InstanceCreateInfo, PhysicalDevice, QueueFlags,
+        DebugUtilsObjectNameInfoEXT, DeviceCreateInfo, DeviceQueueCreateInfo, Format,
+        FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, PhysicalDevice, QueueFlags,
     },
     Device, Entry, Instance,
 };
@@ -271,4 +272,35 @@ impl Base {
     }
     #[cfg(not(feature = "validation_vulkan"))]
     pub fn name_object<T: Clone + Handle>(&self, _: &T, _: String) {}
+
+    pub fn find_supported_format(
+        &self,
+        candidates: Vec<Format>,
+        tiling: ImageTiling,
+        features: FormatFeatureFlags,
+    ) -> Result<Format> {
+        candidates
+            .iter()
+            .find_map(|&format| {
+                let properties = unsafe {
+                    self.instance
+                        .get_physical_device_format_properties(*self.physical_device, format)
+                };
+
+                if match tiling {
+                    ash::vk::ImageTiling::LINEAR => {
+                        properties.linear_tiling_features.bitand(features) == features
+                    }
+                    ash::vk::ImageTiling::OPTIMAL => {
+                        properties.optimal_tiling_features.bitand(features) == features
+                    }
+                    _ => false,
+                } {
+                    Some(format)
+                } else {
+                    None
+                }
+            })
+            .ok_or(Error::msg("Couldn't find supported format"))
+    }
 }
