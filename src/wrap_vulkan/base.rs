@@ -1,25 +1,36 @@
-use anyhow::{Result, bail, Error};
-use std::{mem::ManuallyDrop, ffi::{CString, CStr}};
+use anyhow::{bail, Error, Result};
+use std::{
+    ffi::{CStr, CString},
+    mem::ManuallyDrop,
+};
 
-use ash::{Entry, Instance, vk::{DebugUtilsObjectNameInfoEXT,Handle,PhysicalDevice, make_api_version, api_version_major, api_version_minor, InstanceCreateInfo, ApplicationInfo, QueueFlags, DeviceCreateInfo, DeviceQueueCreateInfo}, Device, extensions::ext::DebugUtils};
+use ash::{
+    extensions::ext::DebugUtils,
+    vk::{
+        api_version_major, api_version_minor, make_api_version, ApplicationInfo,
+        DebugUtilsObjectNameInfoEXT, DeviceCreateInfo, DeviceQueueCreateInfo, Handle,
+        InstanceCreateInfo, PhysicalDevice, QueueFlags,
+    },
+    Device, Entry, Instance,
+};
 
-use crate::{wrap_window, wrap_openxr};
+use crate::{wrap_openxr, wrap_window};
 
 #[cfg(feature = "validation_vulkan")]
 use super::Debug;
 use super::SurfaceRelated;
 
 pub struct Base {
-    entry: ManuallyDrop<Entry>,
-    instance: ManuallyDrop<Instance>,
-    physical_device: ManuallyDrop<PhysicalDevice>,
-    device: ManuallyDrop<Device>,
+    pub entry: ManuallyDrop<Entry>,
+    pub instance: ManuallyDrop<Instance>,
+    pub physical_device: ManuallyDrop<PhysicalDevice>,
+    pub device: ManuallyDrop<Device>,
 
     #[cfg(feature = "validation_vulkan")]
-    debug: ManuallyDrop<Debug>,
+    pub debug: ManuallyDrop<Debug>,
 
-    queue_family_index: u32,
-    surface_related: ManuallyDrop<SurfaceRelated>,
+    pub queue_family_index: u32,
+    pub surface_related: ManuallyDrop<SurfaceRelated>,
 }
 
 impl Drop for Base {
@@ -112,7 +123,10 @@ impl Base {
         #[cfg(feature = "validation_vulkan")]
         let debug = Debug::new(&entry, &instance)?;
 
-        for (i, physical_device) in  unsafe { instance.enumerate_physical_devices() }?.iter().enumerate() {
+        for (i, physical_device) in unsafe { instance.enumerate_physical_devices() }?
+            .iter()
+            .enumerate()
+        {
             log::info!("Available physical device nr. {}: {:?}", i, unsafe {
                 CStr::from_ptr(
                     instance
@@ -159,7 +173,8 @@ impl Base {
             bail!("Vulkan phyiscal device doesn't support target version");
         }
 
-        let surface_related = SurfaceRelated::new(&entry, &instance, physical_device, &wrap_window.window)?;
+        let surface_related =
+            SurfaceRelated::new(&entry, &instance, physical_device, &wrap_window.window)?;
 
         let queue_family_index =
             unsafe { instance.get_physical_device_queue_family_properties(physical_device) }
@@ -232,8 +247,6 @@ impl Base {
 
     #[cfg(feature = "validation_vulkan")]
     pub fn name_object<T: Clone + Handle>(&self, ash_object: &T, name: String) {
-
-
         let c_str = std::ffi::CString::new(name).unwrap();
         log::debug!(
             "Naming object {:?} of type {:?}: {:?}",
