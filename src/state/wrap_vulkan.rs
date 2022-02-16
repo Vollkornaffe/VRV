@@ -7,7 +7,7 @@ use anyhow::{bail, Error, Result};
 use ash::{
     extensions::{ext::DebugUtils, khr::Surface},
     vk::{
-        api_version_major, api_version_minor, make_api_version, ApplicationInfo, Handle,
+        api_version_major, api_version_minor, make_api_version, ApplicationInfo, DeviceCreateInfo, DeviceQueueCreateInfo, Handle,
         InstanceCreateInfo, PhysicalDevice, PresentModeKHR, QueueFlags, SurfaceCapabilitiesKHR,
         SurfaceFormatKHR, SurfaceKHR,
     },
@@ -149,7 +149,15 @@ impl Drop for State {
 
 impl State {
     pub fn new(window_state: &wrap_window::State, xr_state: &wrap_openxr::State) -> Result<State> {
+        #[cfg(feature = "validation_vulkan")]
         const VALIDATION_LAYER_NAME: &'static str = "VK_LAYER_KHRONOS_validation";
+        #[cfg(feature = "validation_vulkan")]
+        let c_str_layer_name = CString::new(VALIDATION_LAYER_NAME).unwrap();
+        #[cfg(feature = "validation_vulkan")]
+        let c_str_layer_names = [c_str_layer_name.as_ptr()];
+
+        #[cfg(not(feature = "validation_vulkan"))]
+        let c_str_layer_names = [];
 
         log::info!("Creating new Vulkan State");
 
@@ -181,30 +189,36 @@ impl State {
 
         let entry = unsafe { Entry::load() }?;
 
-        let app_info = ApplicationInfo::builder()
-            .api_version(vk_target_version)
-            .build();
-        let instance_extensions = instance_extensions
-            .iter()
-            .map(|ext| ext.as_c_str().as_ptr())
-            .collect::<Vec<_>>();
-        let info = InstanceCreateInfo::builder()
-            .application_info(&app_info)
-            .enabled_extension_names(&instance_extensions);
-
-        // this pains me :(
-        #[cfg(feature = "validation_vulkan")]
-        let c_str_layer_name = CString::new(VALIDATION_LAYER_NAME).unwrap();
-        #[cfg(feature = "validation_vulkan")]
-        let c_str_layer_names = [c_str_layer_name.as_ptr()];
         #[cfg(feature = "validation_vulkan")]
         let mut debug_info = Debug::info();
-        #[cfg(feature = "validation_vulkan")]
-        let info = info
-            .enabled_layer_names(&c_str_layer_names)
-            .push_next(&mut debug_info);
 
-        let instance = unsafe { entry.create_instance(&info, None) }?;
+        // I really couldn't find a better way to do this
+        // the problem is that push_next can't take a "null object"
+        let instance = unsafe {
+            entry.create_instance(
+                #[cfg(feature = "validation_vulkan")]
+                &InstanceCreateInfo::builder()
+                    .application_info(&ApplicationInfo::builder().api_version(vk_target_version))
+                    .enabled_extension_names(
+                        &instance_extensions
+                            .iter()
+                            .map(|ext| ext.as_c_str().as_ptr())
+                            .collect::<Vec<_>>(),
+                    )
+                    .enabled_layer_names(&c_str_layer_names)
+                    .push_next(&mut debug_info),
+                #[cfg(not(feature = "validation_vulkan"))]
+                &InstanceCreateInfo::builder()
+                    .application_info(&ApplicationInfo::builder().api_version(vk_target_version))
+                    .enabled_extension_names(
+                        &instance_extensions
+                            .iter()
+                            .map(|ext| ext.as_c_str().as_ptr())
+                            .collect::<Vec<_>>(),
+                    ),
+                None,
+            )
+        }?;
 
         #[cfg(feature = "validation_vulkan")]
         let debug = Debug::new(&entry, &instance)?;
@@ -308,7 +322,7 @@ impl State {
                 .enumerate()
                 .find_map(|(queue_family_index, suitable)| {
                     if *suitable {
-                        Some(queue_family_index)
+                        Some(queue_family_index as u32)
                     } else {
                         None
                     }
@@ -316,6 +330,29 @@ impl State {
                 .ok_or(Error::msg("Vulkan device has no suitable queue"))?;
 
         log::trace!("Using queue nr. {}", queue_family_index);
+
+        let device = unsafe {
+            instance.create_device(
+                physical_device,
+                &DeviceCreateInfo::builder()
+                    .queue_create_infos(&[DeviceQueueCreateInfo::builder()
+                        .queue_family_index(queue_family_index)
+                        .queue_priorities(&[1.0])
+                        .build()])
+                    .enabled_extension_names(
+                        &device_extensions
+                            .iter()
+                            .map(|ext| ext.as_ptr())
+                            .collect::<Vec<_>>(),
+                    )
+                    .enabled_layer_names(if cfg!(feature = "validation_vulkan") {
+                        &c_str_layer_names
+                    } else {
+                        &[]
+                    }),
+                None,
+            )
+        }?;
 
         Ok(Self {
             entry: ManuallyDrop::new(entry),
