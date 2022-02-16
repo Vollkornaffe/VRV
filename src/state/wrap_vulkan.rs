@@ -5,12 +5,16 @@ use std::{
 
 use anyhow::{bail, Error, Result};
 use ash::{
-    extensions::{ext::DebugUtils, khr::Surface},
+    extensions::{
+        ext::DebugUtils,
+        khr::{Surface, Swapchain},
+    },
     vk::{
-        api_version_major, api_version_minor, make_api_version, ApplicationInfo,
-        CommandPoolCreateFlags, CommandPoolCreateInfo, DeviceCreateInfo, DeviceQueueCreateInfo,
-        Handle, InstanceCreateInfo, PhysicalDevice, PresentModeKHR, QueueFlags,
-        SurfaceCapabilitiesKHR, SurfaceFormatKHR, SurfaceKHR,
+        api_version_major, api_version_minor, make_api_version, ApplicationInfo, ColorSpaceKHR,
+        CommandPoolCreateFlags, CommandPoolCreateInfo, CompositeAlphaFlagsKHR, DeviceCreateInfo,
+        DeviceQueueCreateInfo, Extent2D, Format, Handle, ImageUsageFlags, InstanceCreateInfo,
+        PhysicalDevice, PresentModeKHR, QueueFlags, SharingMode, SurfaceCapabilitiesKHR,
+        SurfaceFormatKHR, SurfaceKHR, SwapchainCreateInfoKHR, SwapchainKHR,
     },
     Device, Entry, Instance,
 };
@@ -113,7 +117,7 @@ mod debug {
 use debug::Debug;
 
 struct SurfaceRelated {
-    pub surface_loader: Surface,
+    pub loader: Surface,
     pub surface: SurfaceKHR,
     pub capabilities: SurfaceCapabilitiesKHR,
     pub formats: Vec<SurfaceFormatKHR>,
@@ -122,7 +126,22 @@ struct SurfaceRelated {
 
 impl Drop for SurfaceRelated {
     fn drop(&mut self) {
-        unsafe { self.surface_loader.destroy_surface(self.surface, None) };
+        unsafe { self.loader.destroy_surface(self.surface, None) }
+    }
+}
+
+struct SwapchainRelated {
+    pub surface_format: SurfaceFormatKHR,
+    pub extent: Extent2D,
+    pub present_mode: PresentModeKHR,
+    pub loader: Swapchain,
+    pub handle: SwapchainKHR,
+    pub image_count: u32,
+}
+
+impl Drop for SwapchainRelated {
+    fn drop(&mut self) {
+        unsafe { self.loader.destroy_swapchain(self.handle, None) }
     }
 }
 
@@ -136,11 +155,13 @@ pub struct State {
     debug: ManuallyDrop<Debug>,
 
     surface_related: ManuallyDrop<SurfaceRelated>,
+    swapchain_related: ManuallyDrop<SwapchainRelated>,
 }
 
 impl Drop for State {
     fn drop(&mut self) {
         unsafe {
+            ManuallyDrop::drop(&mut self.swapchain_related);
             ManuallyDrop::drop(&mut self.device);
             ManuallyDrop::drop(&mut self.physical_device);
             ManuallyDrop::drop(&mut self.surface_related);
@@ -245,24 +266,23 @@ impl State {
             PhysicalDevice::from_raw(xr_state.get_physical_device(instance.handle().as_raw())?);
 
         let surface_related = {
-            let surface_loader = Surface::new(&entry, &instance);
+            let loader = Surface::new(&entry, &instance);
             let surface = unsafe {
                 ash_window::create_surface(&entry, &instance, &window_state.window, None)
             }?;
             let capabilities = unsafe {
-                surface_loader.get_physical_device_surface_capabilities(physical_device, surface)
+                loader.get_physical_device_surface_capabilities(physical_device, surface)
             }?;
-            let formats = unsafe {
-                surface_loader.get_physical_device_surface_formats(physical_device, surface)
-            }?;
+            let formats =
+                unsafe { loader.get_physical_device_surface_formats(physical_device, surface) }?;
             let present_modes = unsafe {
-                surface_loader.get_physical_device_surface_present_modes(physical_device, surface)
+                loader.get_physical_device_surface_present_modes(physical_device, surface)
             }?;
             if formats.is_empty() || present_modes.is_empty() {
                 bail!("Physical device incompatible with surface")
             }
             SurfaceRelated {
-                surface_loader,
+                loader,
                 surface,
                 capabilities,
                 formats,
@@ -312,13 +332,11 @@ impl State {
                     let supp_transfer = info.queue_flags.contains(QueueFlags::TRANSFER);
                     //let supp_sparse = info.queue_flags.contains(QueueFlags::SPARSE_BINDING);
                     let supp_present = unsafe {
-                        surface_related
-                            .surface_loader
-                            .get_physical_device_surface_support(
-                                physical_device,
-                                queue_family_index as u32,
-                                surface_related.surface,
-                            )
+                        surface_related.loader.get_physical_device_surface_support(
+                            physical_device,
+                            queue_family_index as u32,
+                            surface_related.surface,
+                        )
                     }?;
                     Ok(supp_graphics && supp_present && supp_transfer)
                 })
@@ -359,6 +377,78 @@ impl State {
             )
         }?;
 
+        let swapchain_related = {
+            let surface_format = *surface_related
+                .formats
+                .iter()
+                .find(|f| {
+                    f.format == Format::R8G8B8A8_UNORM
+                        && f.color_space == ColorSpaceKHR::SRGB_NONLINEAR
+                })
+                .ok_or(Error::msg("No suitable format"))?;
+            let extent = if surface_related.capabilities.current_extent.height == std::u32::MAX {
+                // The extent of the swapchain can be choosen freely
+                surface_related.capabilities.current_extent
+            } else {
+                Extent2D {
+                    width: std::cmp::max(
+                        surface_related.capabilities.min_image_extent.width,
+                        std::cmp::min(
+                            surface_related.capabilities.max_image_extent.width,
+                            window_state.window.inner_size().width,
+                        ),
+                    ),
+                    height: std::cmp::max(
+                        surface_related.capabilities.min_image_extent.height,
+                        std::cmp::min(
+                            surface_related.capabilities.max_image_extent.height,
+                            window_state.window.inner_size().height,
+                        ),
+                    ),
+                }
+            };
+            // we don't want the window to block our rendering
+            let present_mode = *surface_related
+                .present_modes
+                .iter()
+                .find(|&&m| m == PresentModeKHR::IMMEDIATE)
+                .ok_or(Error::msg("No suitable present mode"))?;
+            let loader = Swapchain::new(&instance, &device);
+            // let's try for at least 3 swapchain elements
+            let image_count = if surface_related.capabilities.max_image_count > 0 {
+                3u32.min(surface_related.capabilities.max_image_count)
+            } else {
+                3
+            };
+            let handle = unsafe {
+                loader.create_swapchain(
+                    &SwapchainCreateInfoKHR::builder()
+                        .surface(surface_related.surface)
+                        .min_image_count(image_count)
+                        .image_color_space(surface_format.color_space)
+                        .image_format(surface_format.format)
+                        .image_extent(extent)
+                        .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
+                        .image_sharing_mode(SharingMode::EXCLUSIVE) // change this if present queue fam. differs
+                        .pre_transform(surface_related.capabilities.current_transform)
+                        .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
+                        .present_mode(present_mode)
+                        .clipped(true)
+                        .image_array_layers(1),
+                    None,
+                )
+            }?;
+
+            SwapchainRelated {
+                surface_format,
+                extent,
+                present_mode,
+                loader,
+                handle,
+                image_count,
+            }
+        };
+
         let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
 
         let command_pool = unsafe {
@@ -383,6 +473,7 @@ impl State {
             debug: ManuallyDrop::new(debug),
 
             surface_related: ManuallyDrop::new(surface_related),
+            swapchain_related: ManuallyDrop::new(swapchain_related),
         })
     }
 }
