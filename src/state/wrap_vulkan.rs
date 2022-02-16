@@ -7,11 +7,12 @@ use anyhow::{bail, Error, Result};
 use ash::{
     extensions::{ext::DebugUtils, khr::Surface},
     vk::{
-        api_version_major, api_version_minor, make_api_version, ApplicationInfo, DeviceCreateInfo, DeviceQueueCreateInfo, Handle,
-        InstanceCreateInfo, PhysicalDevice, PresentModeKHR, QueueFlags, SurfaceCapabilitiesKHR,
-        SurfaceFormatKHR, SurfaceKHR,
+        api_version_major, api_version_minor, make_api_version, ApplicationInfo,
+        CommandPoolCreateFlags, CommandPoolCreateInfo, DeviceCreateInfo, DeviceQueueCreateInfo,
+        Handle, InstanceCreateInfo, PhysicalDevice, PresentModeKHR, QueueFlags,
+        SurfaceCapabilitiesKHR, SurfaceFormatKHR, SurfaceKHR,
     },
-    Entry, Instance,
+    Device, Entry, Instance,
 };
 
 use super::{wrap_openxr, wrap_window};
@@ -128,6 +129,8 @@ impl Drop for SurfaceRelated {
 pub struct State {
     entry: ManuallyDrop<Entry>,
     instance: ManuallyDrop<Instance>,
+    physical_device: ManuallyDrop<PhysicalDevice>,
+    device: ManuallyDrop<Device>,
 
     #[cfg(feature = "validation_vulkan")]
     debug: ManuallyDrop<Debug>,
@@ -138,6 +141,8 @@ pub struct State {
 impl Drop for State {
     fn drop(&mut self) {
         unsafe {
+            ManuallyDrop::drop(&mut self.device);
+            ManuallyDrop::drop(&mut self.physical_device);
             ManuallyDrop::drop(&mut self.surface_related);
             #[cfg(feature = "validation_vulkan")]
             ManuallyDrop::drop(&mut self.debug);
@@ -354,9 +359,25 @@ impl State {
             )
         }?;
 
+        let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
+
+        let command_pool = unsafe {
+            device.create_command_pool(
+                &CommandPoolCreateInfo::builder()
+                    .queue_family_index(queue_family_index)
+                    .flags(
+                        CommandPoolCreateFlags::TRANSIENT
+                            | CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
+                    ),
+                None,
+            )
+        }?;
+
         Ok(Self {
             entry: ManuallyDrop::new(entry),
             instance: ManuallyDrop::new(instance),
+            physical_device: ManuallyDrop::new(physical_device),
+            device: ManuallyDrop::new(device),
 
             #[cfg(feature = "validation_vulkan")]
             debug: ManuallyDrop::new(debug),
