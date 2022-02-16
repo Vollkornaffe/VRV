@@ -3,9 +3,10 @@ use std::{
     ffi::{CStr, CString},
     mem::ManuallyDrop,
 };
+use winit::window::Window;
 
 use ash::{
-    extensions::ext::DebugUtils,
+    extensions::{ext::DebugUtils, khr::Swapchain},
     vk::{
         api_version_major, api_version_minor, make_api_version, ApplicationInfo,
         DebugUtilsObjectNameInfoEXT, DeviceCreateInfo, DeviceQueueCreateInfo, Handle,
@@ -14,7 +15,7 @@ use ash::{
     Device, Entry, Instance,
 };
 
-use crate::{wrap_openxr, wrap_window};
+use crate::wrap_openxr;
 
 #[cfg(feature = "validation_vulkan")]
 use super::Debug;
@@ -48,7 +49,7 @@ impl Drop for Base {
 }
 
 impl Base {
-    pub fn new(wrap_window: &wrap_window::State, wrap_openxr: &wrap_openxr::State) -> Result<Base> {
+    pub fn new(window: &Window, wrap_openxr: &wrap_openxr::State) -> Result<Base> {
         #[cfg(feature = "validation_vulkan")]
         const VALIDATION_LAYER_NAME: &'static str = "VK_LAYER_KHRONOS_validation";
         #[cfg(feature = "validation_vulkan")]
@@ -77,7 +78,10 @@ impl Base {
         }
 
         let instance_extensions = [
-            wrap_window.get_instance_extensions()?,
+            ash_window::enumerate_required_extensions(window)?
+                .iter()
+                .map(|&x| x.into())
+                .collect(),
             wrap_openxr.get_instance_extensions()?,
             // hehe sneaky
             #[cfg(feature = "validation_vulkan")]
@@ -151,7 +155,7 @@ impl Base {
 
         let device_extensions: Vec<CString> = [
             wrap_openxr.get_device_extensions()?,
-            wrap_window.get_device_extensions(),
+            vec![Swapchain::name().into()],
         ]
         .concat();
 
@@ -173,8 +177,7 @@ impl Base {
             bail!("Vulkan phyiscal device doesn't support target version");
         }
 
-        let surface_related =
-            SurfaceRelated::new(&entry, &instance, physical_device, &wrap_window.window)?;
+        let surface_related = SurfaceRelated::new(&entry, &instance, physical_device, window)?;
 
         let queue_family_index =
             unsafe { instance.get_physical_device_queue_family_properties(physical_device) }
