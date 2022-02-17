@@ -1,17 +1,16 @@
 use std::ffi::CString;
 
 use anyhow::Result;
-use ash::{
-    vk::{
-        BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace,
-        GraphicsPipelineCreateInfo, LogicOp, Offset2D, Pipeline, PipelineCache,
-        PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
-        PipelineDepthStencilStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout,
-        PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo,
-        PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo,
-        PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, Rect2D, RenderPass,
-        SampleCountFlags, ShaderModule, ShaderModuleCreateInfo, Viewport,
-    },
+use ash::vk::{
+    BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace,
+    GraphicsPipelineCreateInfo, LogicOp, Offset2D, Pipeline, PipelineCache,
+    PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
+    PipelineDepthStencilStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout,
+    PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo,
+    PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo,
+    PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode,
+    PrimitiveTopology, Rect2D, RenderPass, SampleCountFlags, ShaderModule, ShaderModuleCreateInfo,
+    Viewport,
 };
 use vk_shader_macros::include_glsl;
 
@@ -27,16 +26,10 @@ pub fn create_pipeline_layout(base: &Base) -> Result<PipelineLayout> {
     Ok(layout)
 }
 
-fn create_shader_module(
-    base: &Base,
-    spirv: &[u32],
-    name: String,
-) -> Result<ShaderModule> {
+fn create_shader_module(base: &Base, spirv: &[u32], name: String) -> Result<ShaderModule> {
     let module = unsafe {
-        base.device.create_shader_module(
-            &ShaderModuleCreateInfo::builder().code(spirv),
-            None,
-        )
+        base.device
+            .create_shader_module(&ShaderModuleCreateInfo::builder().code(spirv), None)
     }?;
     base.name_object(&module, name)?;
     Ok(module)
@@ -49,18 +42,10 @@ pub fn create_pipeline(
     layout: PipelineLayout,
 ) -> Result<Pipeline> {
     const VERT: &[u32] = include_glsl!("shaders/example.vert");
-    const FRAG: &[u32] = include_glsl!("shaders/example.vert");
+    const FRAG: &[u32] = include_glsl!("shaders/example.frag");
 
-    let module_vert = create_shader_module(
-        base,
-        VERT,
-        "ShaderVert".to_string(),
-    )?;
-    let module_frag = create_shader_module(
-        base,
-        FRAG,
-        "ShaderFrag".to_string(),
-    )?;
+    let module_vert = create_shader_module(base, VERT, "ShaderVert".to_string())?;
+    let module_frag = create_shader_module(base, FRAG, "ShaderFrag".to_string())?;
 
     let vertex_bindings = Vertex::get_binding_description();
     let vertex_attributes = Vertex::get_attribute_description();

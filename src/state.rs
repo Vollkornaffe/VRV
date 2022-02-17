@@ -7,7 +7,10 @@ use ash::vk::{
 };
 use winit::window::Window;
 
-use crate::{wrap_openxr, wrap_vulkan::{self, create_pipeline_layout, create_pipeline}};
+use crate::{
+    wrap_openxr,
+    wrap_vulkan::{self, create_pipeline, create_pipeline_layout},
+};
 
 pub struct State {
     pub openxr: ManuallyDrop<wrap_openxr::State>,
