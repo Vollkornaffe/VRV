@@ -28,6 +28,35 @@ pub struct DeviceImageSettings {
 }
 
 impl DeviceImage {
+    pub fn new_view(
+        base: &Base,
+        image: Image,
+        format: Format,
+        aspect_flags: ImageAspectFlags,
+        name: String,
+    ) -> Result<ImageView> {
+        let view = unsafe {
+            base.device.create_image_view(
+                &ImageViewCreateInfo::builder()
+                    .image(image)
+                    .view_type(ImageViewType::TYPE_2D)
+                    .format(format)
+                    .subresource_range(
+                        ImageSubresourceRange::builder()
+                            .aspect_mask(aspect_flags)
+                            .base_mip_level(0)
+                            .level_count(1)
+                            .base_array_layer(0)
+                            .layer_count(1)
+                            .build(),
+                    ),
+                None,
+            )
+        }?;
+        base.name_object(&view, name)?;
+        Ok(view)
+    }
+
     pub fn new(base: &Base, settings: DeviceImageSettings) -> Result<Self> {
         let image = unsafe {
             base.device.create_image(
@@ -67,25 +96,13 @@ impl DeviceImage {
 
         unsafe { base.device.bind_image_memory(image, memory, 0) }?;
 
-        let view = unsafe {
-            base.device.create_image_view(
-                &ImageViewCreateInfo::builder()
-                    .image(image)
-                    .view_type(ImageViewType::TYPE_2D)
-                    .format(settings.format)
-                    .subresource_range(
-                        ImageSubresourceRange::builder()
-                            .aspect_mask(settings.aspect_flags)
-                            .base_mip_level(0)
-                            .level_count(1)
-                            .base_array_layer(0)
-                            .layer_count(1)
-                            .build(),
-                    ),
-                None,
-            )
-        }?;
-        base.name_object(&view, format!("{}View", settings.name.clone()))?;
+        let view = Self::new_view(
+            base,
+            image,
+            settings.format,
+            settings.aspect_flags,
+            format!("{}View", settings.name.clone()),
+        )?;
 
         Ok(Self {
             image,

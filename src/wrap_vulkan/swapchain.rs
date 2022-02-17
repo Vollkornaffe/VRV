@@ -1,14 +1,22 @@
-use anyhow::{Error, Result};
+use anyhow::{bail, Error, Result};
 use ash::{
     extensions::khr::Swapchain,
     vk::{
-        ColorSpaceKHR, CompositeAlphaFlagsKHR, Extent2D, Format, ImageUsageFlags, PresentModeKHR,
-        SharingMode, SurfaceFormatKHR, SwapchainCreateInfoKHR, SwapchainKHR,
+        ColorSpaceKHR, CompositeAlphaFlagsKHR, Extent2D, Format, Framebuffer,
+        FramebufferCreateInfo, Image, ImageAspectFlags, ImageUsageFlags, ImageView, PresentModeKHR,
+        RenderPass, SharingMode, SurfaceFormatKHR, SwapchainCreateInfoKHR, SwapchainKHR,
     },
+    Device,
 };
 use winit::dpi::PhysicalSize;
 
-use super::Base;
+use super::{Base, DeviceImage};
+
+pub struct SwapElement {
+    pub image: Image,
+    pub view: ImageView,
+    pub frame_buffer: Framebuffer,
+}
 pub struct SwapchainRelated {
     pub surface_format: SurfaceFormatKHR,
     pub extent: Extent2D,
@@ -16,12 +24,7 @@ pub struct SwapchainRelated {
     pub loader: Swapchain,
     pub handle: SwapchainKHR,
     pub image_count: u32,
-}
-
-impl Drop for SwapchainRelated {
-    fn drop(&mut self) {
-        unsafe { self.loader.destroy_swapchain(self.handle, None) }
-    }
+    pub elements: Vec<SwapElement>,
 }
 
 impl SwapchainRelated {
@@ -98,6 +101,65 @@ impl SwapchainRelated {
             loader,
             handle,
             image_count,
+            elements: Vec::new(), // this is filled after the render pass is created, since the framebuffers reference it
         })
+    }
+
+    pub fn fill_elements(
+        &mut self,
+        base: &Base,
+        depth_view: ImageView,
+        render_pass: RenderPass,
+    ) -> Result<()> {
+        let images = unsafe { self.loader.get_swapchain_images(self.handle) }?;
+        for (i, image) in images.iter().enumerate() {
+            base.name_object(image, format!("WindowSwapchainImage_{}", i))?;
+        }
+
+        if images.len() != self.image_count as usize {
+            bail!("Somehow the number of images in the swapchain doesn't add up");
+        }
+
+        self.elements = (0..self.image_count)
+            .into_iter()
+            .map(|i| -> Result<SwapElement> {
+                let image = images[i as usize];
+                let view = DeviceImage::new_view(
+                    base,
+                    image,
+                    self.surface_format.format,
+                    ImageAspectFlags::COLOR,
+                    format!("WindowSwapchainView_{}", i),
+                )?;
+
+                let frame_buffer = unsafe {
+                    base.device.create_framebuffer(
+                        &FramebufferCreateInfo::builder()
+                            .render_pass(render_pass)
+                            .attachments(&[view, depth_view])
+                            .width(self.extent.width)
+                            .height(self.extent.height)
+                            .layers(1),
+                        None,
+                    )?
+                };
+                base.name_object(&frame_buffer, format!("WindowSwapchainFrameBuffer_{}", i))?;
+
+                Ok(SwapElement {
+                    image,
+                    view,
+                    frame_buffer,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(())
+    }
+
+    pub unsafe fn drop(&self, device: &Device) {
+        for e in &self.elements {
+            device.destroy_image_view(e.view, None);
+            device.destroy_framebuffer(e.frame_buffer, None);
+        }
+        self.loader.destroy_swapchain(self.handle, None)
     }
 }

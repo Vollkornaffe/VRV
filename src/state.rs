@@ -22,7 +22,7 @@ impl Drop for State {
             self.vulkan
                 .device
                 .destroy_render_pass(self.render_pass_window, None);
-            ManuallyDrop::drop(&mut self.swapchain_window);
+            self.swapchain_window.drop(&self.vulkan.device);
             ManuallyDrop::drop(&mut self.vulkan);
             ManuallyDrop::drop(&mut self.openxr);
         }
@@ -35,7 +35,8 @@ impl State {
 
         let openxr = wrap_openxr::State::new()?;
         let vulkan = wrap_vulkan::Base::new(window, &openxr)?;
-        let swapchain_window = wrap_vulkan::SwapchainRelated::new(&window.inner_size(), &vulkan)?;
+        let mut swapchain_window =
+            wrap_vulkan::SwapchainRelated::new(&window.inner_size(), &vulkan)?;
 
         let depth_format = vulkan.find_supported_depth_stencil_format()?;
 
@@ -56,6 +57,8 @@ impl State {
                 name: "DepthWindow".to_string(),
             },
         )?;
+
+        swapchain_window.fill_elements(&vulkan, depth_image_window.view, render_pass_window)?;
 
         Ok(Self {
             openxr: ManuallyDrop::new(openxr),
