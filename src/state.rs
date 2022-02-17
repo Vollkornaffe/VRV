@@ -1,7 +1,10 @@
 use std::mem::ManuallyDrop;
 
 use anyhow::Result;
-use ash::vk::{ImageAspectFlags, ImageTiling, ImageUsageFlags, MemoryPropertyFlags, RenderPass};
+use ash::vk::{
+    ImageAspectFlags, ImageTiling, ImageUsageFlags, MemoryPropertyFlags, Pipeline, PipelineLayout,
+    RenderPass,
+};
 use winit::window::Window;
 
 use crate::{wrap_openxr, wrap_vulkan};
@@ -13,11 +16,18 @@ pub struct State {
     pub swapchain_window: ManuallyDrop<wrap_vulkan::SwapchainRelated>,
     pub render_pass_window: RenderPass,
     pub depth_image_window: wrap_vulkan::DeviceImage,
+
+    pub pipeline_layout: PipelineLayout,
+    pub pipeline: Pipeline,
 }
 
 impl Drop for State {
     fn drop(&mut self) {
         unsafe {
+            self.vulkan
+                .device
+                .destroy_pipeline_layout(self.pipeline_layout, None);
+            self.vulkan.device.destroy_pipeline(self.pipeline, None);
             self.depth_image_window.drop(&self.vulkan.device);
             self.vulkan
                 .device
