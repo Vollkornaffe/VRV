@@ -9,7 +9,7 @@ use winit::window::Window;
 
 use crate::{
     wrap_openxr,
-    wrap_vulkan::{self, create_pipeline, create_pipeline_layout},
+    wrap_vulkan::{self, command::CommandRelated, create_pipeline, create_pipeline_layout},
 };
 
 pub struct State {
@@ -22,11 +22,16 @@ pub struct State {
 
     pub pipeline_layout: PipelineLayout,
     pub pipeline: Pipeline,
+
+    pub command_related: CommandRelated,
 }
 
 impl Drop for State {
     fn drop(&mut self) {
         unsafe {
+            self.vulkan
+                .device
+                .destroy_command_pool(self.command_related.pool, None);
             self.vulkan
                 .device
                 .destroy_pipeline_layout(self.pipeline_layout, None);
@@ -43,6 +48,16 @@ impl Drop for State {
 }
 
 impl State {
+    pub fn render(&self) -> Result<()> {
+        unsafe {
+            self.vulkan
+                .device
+                .queue_wait_idle(self.command_related.queue)
+        }?;
+
+        Ok(())
+    }
+
     pub fn new(window: &Window) -> Result<Self> {
         log::info!("Creating new VRV state");
 
@@ -81,6 +96,8 @@ impl State {
             pipeline_layout,
         )?;
 
+        let command_related = CommandRelated::new(&vulkan)?;
+
         Ok(Self {
             openxr: ManuallyDrop::new(openxr),
             vulkan: ManuallyDrop::new(vulkan),
@@ -89,6 +106,7 @@ impl State {
             depth_image_window,
             pipeline_layout,
             pipeline,
+            command_related,
         })
     }
 }

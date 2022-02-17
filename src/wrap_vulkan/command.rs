@@ -1,25 +1,31 @@
 use anyhow::Result;
+use ash::vk::{
+    CommandBuffer, CommandBufferAllocateInfo, CommandPool, CommandPoolCreateFlags,
+    CommandPoolCreateInfo, Queue,
+};
+
+use super::Base;
 pub struct CommandRelated {
-
-    queue:
+    pub queue: Queue,
+    pub pool: CommandPool,
 }
+
 impl CommandRelated {
-    pub fn new() -> Result <Self> {
+    pub fn new(base: &Base) -> Result<Self> {
+        let queue = unsafe { base.device.get_device_queue(base.queue_family_index, 0) };
 
-
-    }
-
-}
-        let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
-
-        let command_pool = unsafe {
-            device.create_command_pool(
+        let pool = unsafe {
+            base.device.create_command_pool(
                 &CommandPoolCreateInfo::builder()
-                    .queue_family_index(queue_family_index)
                     .flags(
-                        CommandPoolCreateFlags::TRANSIENT
-                            | CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
-                    ),
+                        CommandPoolCreateFlags::RESET_COMMAND_BUFFER
+                            | CommandPoolCreateFlags::TRANSIENT,
+                    )
+                    .queue_family_index(base.queue_family_index),
                 None,
             )
         }?;
+
+        Ok(Self { queue, pool })
+    }
+}

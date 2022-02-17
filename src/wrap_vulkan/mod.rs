@@ -1,4 +1,5 @@
 pub mod base;
+pub mod command;
 #[cfg(feature = "validation_vulkan")]
 pub mod debug;
 pub mod device_image;
@@ -10,6 +11,7 @@ pub mod swapchain;
 pub mod sync;
 
 pub use base::Base;
+pub use command::CommandRelated;
 #[cfg(feature = "validation_vulkan")]
 pub use debug::Debug;
 pub use device_image::DeviceImage;
