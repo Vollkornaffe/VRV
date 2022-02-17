@@ -5,26 +5,34 @@ use ash::vk::{
 };
 use memoffset::offset_of;
 
+#[repr(C, align(16))]
+pub struct Align16<T: Copy>(pub T);
+impl<T: Copy> From<T> for Align16<T> {
+    fn from(t: T) -> Self {
+        Self(t)
+    }
+}
+
 #[repr(C)]
 pub struct Vertex {
-    pub pos: [f32; 3],
-    pub col: [f32; 3],
+    pub pos: Align16<[f32; 3]>,
+    pub col: Align16<[f32; 3]>,
 }
 
 impl Vertex {
     pub fn debug_triangle() -> Vec<Self> {
         vec![
             Self {
-                pos: [0.0, -0.5, 0.0],
-                col: [1.0, 0.0, 0.0],
+                pos: [0.0, -0.5, 0.0].into(),
+                col: [1.0, 0.0, 0.0].into(),
             },
             Self {
-                pos: [0.5, 0.5, 0.0],
-                col: [0.0, 1.0, 0.0],
+                pos: [0.5, 0.5, 0.0].into(),
+                col: [0.0, 1.0, 0.0].into(),
             },
             Self {
-                pos: [-0.5, 0.5, 0.0],
-                col: [0.0, 0.0, 1.0],
+                pos: [-0.5, 0.5, 0.0].into(),
+                col: [0.0, 0.0, 1.0].into(),
             },
         ]
     }

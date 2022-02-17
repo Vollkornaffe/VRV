@@ -7,7 +7,7 @@ use ash::vk::{
 };
 use winit::window::Window;
 
-use crate::{wrap_openxr, wrap_vulkan};
+use crate::{wrap_openxr, wrap_vulkan::{self, create_pipeline_layout, create_pipeline}};
 
 pub struct State {
     pub openxr: ManuallyDrop<wrap_openxr::State>,
@@ -70,12 +70,22 @@ impl State {
 
         swapchain_window.fill_elements(&vulkan, depth_image_window.view, render_pass_window)?;
 
+        let pipeline_layout = create_pipeline_layout(&vulkan)?;
+        let pipeline = create_pipeline(
+            &vulkan,
+            swapchain_window.extent,
+            render_pass_window,
+            pipeline_layout,
+        )?;
+
         Ok(Self {
             openxr: ManuallyDrop::new(openxr),
             vulkan: ManuallyDrop::new(vulkan),
             swapchain_window: ManuallyDrop::new(swapchain_window),
             render_pass_window,
             depth_image_window,
+            pipeline_layout,
+            pipeline,
         })
     }
 }

@@ -4,7 +4,7 @@ pub mod debug;
 pub mod device_image;
 pub mod geometry;
 pub mod pipeline;
-pub mod renderpass;
+pub mod render_pass;
 pub mod surface;
 pub mod swapchain;
 
@@ -14,6 +14,7 @@ pub use debug::Debug;
 pub use device_image::DeviceImage;
 pub use geometry::Vertex;
 pub use pipeline::create_pipeline_layout;
-pub use renderpass::create_render_pass_window;
+pub use pipeline::create_pipeline;
+pub use render_pass::create_render_pass_window;
 pub use surface::SurfaceRelated;
 pub use swapchain::SwapchainRelated;
