@@ -7,6 +7,7 @@ pub mod pipeline;
 pub mod render_pass;
 pub mod surface;
 pub mod swapchain;
+pub mod sync;
 
 pub use base::Base;
 #[cfg(feature = "validation_vulkan")]
