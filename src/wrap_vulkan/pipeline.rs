@@ -10,12 +10,14 @@ use ash::{
         PipelineDepthStencilStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout,
         PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo,
         PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo,
+        PipelineVertexInputStateCreateFlags, PipelineVertexInputStateCreateInfo,
         PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, Rect2D, RenderPass,
-        SampleCountFlags, ShaderModule, ShaderModuleCreateInfo, Viewport,
+        SampleCountFlags, ShaderModule, ShaderModuleCreateInfo, VertexInputAttributeDescription,
+        VertexInputBindingDescription, Viewport,
     },
 };
 
-use super::Base;
+use super::{Base, Vertex};
 
 // later we can add set layouts and more
 pub fn create_pipeline_layout(base: &Base) -> Result<PipelineLayout> {
@@ -59,6 +61,9 @@ pub fn crate_pipeline(
         "ShaderFrag".to_string(),
     )?;
 
+    let vertex_bindings = Vertex::get_binding_description();
+    let vertex_attributes = Vertex::get_attribute_description();
+
     let entry_point = CString::new("main").unwrap();
     let pipeline = unsafe {
         base.device.create_graphics_pipelines(
@@ -76,7 +81,11 @@ pub fn crate_pipeline(
                         .name(&entry_point)
                         .build(),
                 ])
-                .vertex_input_state(&vertex_input_info)
+                .vertex_input_state(
+                    &PipelineVertexInputStateCreateInfo::builder()
+                        .vertex_binding_descriptions(&vertex_bindings)
+                        .vertex_attribute_descriptions(&vertex_attributes),
+                )
                 .input_assembly_state(
                     &PipelineInputAssemblyStateCreateInfo::builder()
                         .topology(PrimitiveTopology::TRIANGLE_LIST)
