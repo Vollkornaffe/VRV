@@ -275,7 +275,7 @@ impl Base {
 
     pub fn find_supported_format(
         &self,
-        candidates: Vec<Format>,
+        candidates: &[Format],
         tiling: ImageTiling,
         features: FormatFeatureFlags,
     ) -> Result<Format> {
