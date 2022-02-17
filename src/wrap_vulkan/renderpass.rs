@@ -8,13 +8,17 @@ use ash::vk::{
 
 use super::Base;
 
-pub fn create_window_render_pass(base: &Base, swapchain_format: Format) -> Result<RenderPass> {
+pub fn create_render_pass_window(
+    base: &Base,
+    color_format: Format,
+    depth_format: Format,
+) -> Result<RenderPass> {
     let render_pass = unsafe {
         base.device.create_render_pass(
             &RenderPassCreateInfo::builder()
                 .attachments(&[
                     AttachmentDescription::builder()
-                        .format(swapchain_format)
+                        .format(color_format)
                         .samples(SampleCountFlags::TYPE_1)
                         .load_op(AttachmentLoadOp::CLEAR)
                         .store_op(AttachmentStoreOp::STORE)
@@ -64,6 +68,6 @@ pub fn create_window_render_pass(base: &Base, swapchain_format: Format) -> Resul
             None,
         )
     }?;
-    base.name_object(&render_pass, "RenderPassWindow".to_string());
+    base.name_object(&render_pass, "RenderPassWindow".to_string())?;
     Ok(render_pass)
 }

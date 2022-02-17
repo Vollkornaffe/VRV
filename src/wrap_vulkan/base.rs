@@ -11,7 +11,8 @@ use ash::{
     vk::{
         api_version_major, api_version_minor, make_api_version, ApplicationInfo,
         DebugUtilsObjectNameInfoEXT, DeviceCreateInfo, DeviceQueueCreateInfo, Format,
-        FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, PhysicalDevice, QueueFlags,
+        FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, MemoryPropertyFlags,
+        PhysicalDevice, QueueFlags,
     },
     Device, Entry, Instance,
 };
@@ -250,7 +251,7 @@ impl Base {
     }
 
     #[cfg(feature = "validation_vulkan")]
-    pub fn name_object<T: Clone + Handle>(&self, ash_object: &T, name: String) {
+    pub fn name_object<T: Clone + Handle>(&self, ash_object: &T, name: String) -> Result<()> {
         let c_str = std::ffi::CString::new(name).unwrap();
         log::debug!(
             "Naming object {:?} of type {:?}: {:?}",
@@ -263,15 +264,16 @@ impl Base {
             .object_type(T::TYPE)
             .object_handle(ash_object.clone().as_raw())
             .object_name(&c_str);
-        unsafe {
+        Ok(unsafe {
             self.debug
                 .loader
                 .debug_utils_set_object_name(self.device.handle(), &name_info)
-        }
-        .unwrap();
+        }?)
     }
     #[cfg(not(feature = "validation_vulkan"))]
-    pub fn name_object<T: Clone + Handle>(&self, _: &T, _: String) {}
+    pub fn name_object<T: Clone + Handle>(&self, _: &T, _: String) -> Result<()> {
+        Ok(())
+    }
 
     pub fn find_supported_format(
         &self,
@@ -288,10 +290,10 @@ impl Base {
                 };
 
                 if match tiling {
-                    ash::vk::ImageTiling::LINEAR => {
+                    ImageTiling::LINEAR => {
                         properties.linear_tiling_features.bitand(features) == features
                     }
-                    ash::vk::ImageTiling::OPTIMAL => {
+                    ImageTiling::OPTIMAL => {
                         properties.optimal_tiling_features.bitand(features) == features
                     }
                     _ => false,
@@ -302,5 +304,39 @@ impl Base {
                 }
             })
             .ok_or(Error::msg("Couldn't find supported format"))
+    }
+
+    pub fn find_supported_depth_stencil_format(&self) -> Result<Format> {
+        self.find_supported_format(
+            &[
+                Format::D32_SFLOAT,
+                Format::D32_SFLOAT_S8_UINT,
+                Format::D24_UNORM_S8_UINT,
+            ],
+            ImageTiling::OPTIMAL,
+            FormatFeatureFlags::DEPTH_STENCIL_ATTACHMENT,
+        )
+    }
+
+    pub fn find_memory_type_index(
+        &self,
+        memory_type_bits: MemoryPropertyFlags,
+        required_properties: MemoryPropertyFlags,
+    ) -> Result<u32> {
+        let memory_properties = unsafe {
+            self.instance
+                .get_physical_device_memory_properties(*self.physical_device)
+        };
+        (0..memory_properties.memory_type_count)
+            .into_iter()
+            .find(|&i| {
+                memory_type_bits.bitand(MemoryPropertyFlags::from_raw(1 << i))
+                    == MemoryPropertyFlags::from_raw(1 << i)
+                    && memory_properties.memory_types[i as usize]
+                        .property_flags
+                        .bitand(required_properties)
+                        == required_properties
+            })
+            .ok_or(Error::msg("Failed to find suitable memory type"))
     }
 }

@@ -89,7 +89,7 @@ impl SwapchainRelated {
             )
         }?;
         // there is also the HMD swapchain
-        base.name_object(&handle, "WindowSwapchain".to_string());
+        base.name_object(&handle, "WindowSwapchain".to_string())?;
 
         Ok(Self {
             surface_format,
