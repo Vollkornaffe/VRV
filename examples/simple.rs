@@ -12,13 +12,15 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let _state = State::new(&window).unwrap();
+    let state = State::new(&window).unwrap();
 
     // not sure if this is the way I want it...
     // it is an honest approach in the sense that the window is "on top"
     event_loop.run(move |event, _, control_flow| match event {
         Event::MainEventsCleared => {
             // update and draw
+            state.render().unwrap();
+
             window.request_redraw();
         }
         Event::WindowEvent {

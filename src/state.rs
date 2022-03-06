@@ -2,14 +2,19 @@ use std::mem::ManuallyDrop;
 
 use anyhow::Result;
 use ash::vk::{
-    ImageAspectFlags, ImageTiling, ImageUsageFlags, MemoryPropertyFlags, Pipeline, PipelineLayout,
-    RenderPass,
+    Fence, ImageAspectFlags, ImageTiling, ImageUsageFlags, MemoryPropertyFlags, Pipeline,
+    PipelineLayout, PipelineStageFlags, PresentInfoKHR, RenderPass, Semaphore, SubmitInfo,
 };
 use winit::window::Window;
 
 use crate::{
     wrap_openxr,
-    wrap_vulkan::{self, command::CommandRelated, create_pipeline, create_pipeline_layout},
+    wrap_vulkan::{
+        self,
+        command::CommandRelated,
+        create_pipeline, create_pipeline_layout,
+        sync::{create_fence, create_semaphore, wait_and_reset},
+    },
 };
 
 pub struct State {
@@ -23,6 +28,10 @@ pub struct State {
     pub pipeline_layout: PipelineLayout,
     pub pipeline: Pipeline,
 
+    pub window_semaphore_image_acquired: Semaphore,
+    pub window_semaphore_rendering_finished: Semaphore,
+    pub window_fence_rendering_finished: Fence,
+
     pub command_related: CommandRelated,
 }
 
@@ -32,6 +41,15 @@ impl Drop for State {
             self.vulkan
                 .device
                 .destroy_command_pool(self.command_related.pool, None);
+            self.vulkan
+                .device
+                .destroy_semaphore(self.window_semaphore_image_acquired, None);
+            self.vulkan
+                .device
+                .destroy_semaphore(self.window_semaphore_rendering_finished, None);
+            self.vulkan
+                .device
+                .destroy_fence(self.window_fence_rendering_finished, None);
             self.vulkan
                 .device
                 .destroy_pipeline_layout(self.pipeline_layout, None);
@@ -49,10 +67,37 @@ impl Drop for State {
 
 impl State {
     pub fn render(&self) -> Result<()> {
+        wait_and_reset(&self.vulkan, self.window_fence_rendering_finished)?;
+
+        let (window_image_index, _suboptimal) = unsafe {
+            self.swapchain_window.loader.acquire_next_image(
+                self.swapchain_window.handle,
+                std::u64::MAX, // don't timeout
+                self.window_semaphore_image_acquired,
+                ash::vk::Fence::default(),
+            )
+        }?;
+
         unsafe {
-            self.vulkan
-                .device
-                .queue_wait_idle(self.command_related.queue)
+            self.vulkan.device.queue_submit(
+                self.command_related.queue,
+                &[SubmitInfo::builder()
+                    .wait_semaphores(&[self.window_semaphore_image_acquired])
+                    .wait_dst_stage_mask(&[PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
+                    .signal_semaphores(&[self.window_semaphore_rendering_finished])
+                    .build()],
+                self.window_fence_rendering_finished,
+            )
+        }?;
+
+        let _suboptimal = unsafe {
+            self.swapchain_window.loader.queue_present(
+                self.command_related.queue,
+                &PresentInfoKHR::builder()
+                    .wait_semaphores(&[self.window_semaphore_rendering_finished])
+                    .swapchains(&[self.swapchain_window.handle])
+                    .image_indices(&[window_image_index]),
+            )
         }?;
 
         Ok(())
@@ -98,6 +143,16 @@ impl State {
 
         let command_related = CommandRelated::new(&vulkan)?;
 
+        let window_semaphore_image_acquired =
+            create_semaphore(&vulkan, "WindowSemaphoreImageAcquired".to_string())?;
+        let window_semaphore_rendering_finished =
+            create_semaphore(&vulkan, "WindowSemaphoreRenderingFinished".to_string())?;
+        let window_fence_rendering_finished = create_fence(
+            &vulkan,
+            true, // we start with finished rendering
+            "WindowFenceRenderingFinihsed".to_string(),
+        )?;
+
         Ok(Self {
             openxr: ManuallyDrop::new(openxr),
             vulkan: ManuallyDrop::new(vulkan),
@@ -106,6 +161,9 @@ impl State {
             depth_image_window,
             pipeline_layout,
             pipeline,
+            window_semaphore_image_acquired,
+            window_semaphore_rendering_finished,
+            window_fence_rendering_finished,
             command_related,
         })
     }
