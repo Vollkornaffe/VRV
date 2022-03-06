@@ -21,13 +21,12 @@ pub struct State {
     pub openxr: ManuallyDrop<wrap_openxr::State>,
     pub vulkan: ManuallyDrop<wrap_vulkan::base::Base>,
 
-    pub swapchain_window: ManuallyDrop<wrap_vulkan::SwapchainRelated>,
-    pub render_pass_window: RenderPass,
-    pub depth_image_window: wrap_vulkan::DeviceImage,
-
     pub pipeline_layout: PipelineLayout,
-    pub pipeline: Pipeline,
 
+    pub window_pipeline: Pipeline,
+    pub window_swapchain: ManuallyDrop<wrap_vulkan::SwapchainRelated>,
+    pub window_render_pass: RenderPass,
+    pub window_depth_image: wrap_vulkan::DeviceImage,
     pub window_semaphore_image_acquired: Semaphore,
     pub window_semaphore_rendering_finished: Semaphore,
     pub window_fence_rendering_finished: Fence,
@@ -53,12 +52,14 @@ impl Drop for State {
             self.vulkan
                 .device
                 .destroy_pipeline_layout(self.pipeline_layout, None);
-            self.vulkan.device.destroy_pipeline(self.pipeline, None);
-            self.depth_image_window.drop(&self.vulkan.device);
             self.vulkan
                 .device
-                .destroy_render_pass(self.render_pass_window, None);
-            self.swapchain_window.drop(&self.vulkan.device);
+                .destroy_pipeline(self.window_pipeline, None);
+            self.window_depth_image.drop(&self.vulkan.device);
+            self.vulkan
+                .device
+                .destroy_render_pass(self.window_render_pass, None);
+            self.window_swapchain.drop(&self.vulkan.device);
             ManuallyDrop::drop(&mut self.vulkan);
             ManuallyDrop::drop(&mut self.openxr);
         }
@@ -70,8 +71,8 @@ impl State {
         wait_and_reset(&self.vulkan, self.window_fence_rendering_finished)?;
 
         let (window_image_index, _suboptimal) = unsafe {
-            self.swapchain_window.loader.acquire_next_image(
-                self.swapchain_window.handle,
+            self.window_swapchain.loader.acquire_next_image(
+                self.window_swapchain.handle,
                 std::u64::MAX, // don't timeout
                 self.window_semaphore_image_acquired,
                 ash::vk::Fence::default(),
@@ -91,11 +92,11 @@ impl State {
         }?;
 
         let _suboptimal = unsafe {
-            self.swapchain_window.loader.queue_present(
+            self.window_swapchain.loader.queue_present(
                 self.command_related.queue,
                 &PresentInfoKHR::builder()
                     .wait_semaphores(&[self.window_semaphore_rendering_finished])
-                    .swapchains(&[self.swapchain_window.handle])
+                    .swapchains(&[self.window_swapchain.handle])
                     .image_indices(&[window_image_index]),
             )
         }?;
@@ -108,20 +109,20 @@ impl State {
 
         let openxr = wrap_openxr::State::new()?;
         let vulkan = wrap_vulkan::Base::new(window, &openxr)?;
-        let mut swapchain_window =
+        let mut window_swapchain =
             wrap_vulkan::SwapchainRelated::new(&window.inner_size(), &vulkan)?;
 
         let depth_format = vulkan.find_supported_depth_stencil_format()?;
 
-        let render_pass_window = wrap_vulkan::create_render_pass_window(
+        let window_render_pass = wrap_vulkan::create_render_pass_window(
             &vulkan,
-            swapchain_window.surface_format.format,
+            window_swapchain.surface_format.format,
             depth_format,
         )?;
-        let depth_image_window = wrap_vulkan::DeviceImage::new(
+        let window_depth_image = wrap_vulkan::DeviceImage::new(
             &vulkan,
             wrap_vulkan::device_image::DeviceImageSettings {
-                extent: swapchain_window.extent,
+                extent: window_swapchain.extent,
                 format: depth_format,
                 tiling: ImageTiling::OPTIMAL,
                 usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
@@ -131,13 +132,13 @@ impl State {
             },
         )?;
 
-        swapchain_window.fill_elements(&vulkan, depth_image_window.view, render_pass_window)?;
+        window_swapchain.fill_elements(&vulkan, window_depth_image.view, window_render_pass)?;
 
         let pipeline_layout = create_pipeline_layout(&vulkan)?;
-        let pipeline = create_pipeline(
+        let window_pipeline = create_pipeline(
             &vulkan,
-            swapchain_window.extent,
-            render_pass_window,
+            window_swapchain.extent,
+            window_render_pass,
             pipeline_layout,
         )?;
 
@@ -156,11 +157,11 @@ impl State {
         Ok(Self {
             openxr: ManuallyDrop::new(openxr),
             vulkan: ManuallyDrop::new(vulkan),
-            swapchain_window: ManuallyDrop::new(swapchain_window),
-            render_pass_window,
-            depth_image_window,
+            window_swapchain: ManuallyDrop::new(window_swapchain),
+            window_render_pass,
+            window_depth_image,
             pipeline_layout,
-            pipeline,
+            window_pipeline,
             window_semaphore_image_acquired,
             window_semaphore_rendering_finished,
             window_fence_rendering_finished,
