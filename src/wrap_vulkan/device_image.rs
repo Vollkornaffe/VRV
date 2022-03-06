@@ -53,7 +53,7 @@ impl DeviceImage {
                 None,
             )
         }?;
-        base.name_object(&view, name)?;
+        base.name_object(view, name)?;
         Ok(view)
     }
 
@@ -78,7 +78,7 @@ impl DeviceImage {
                 None,
             )
         }?;
-        base.name_object(&image, format!("{}Image", settings.name.clone()))?;
+        base.name_object(image, format!("{}Image", settings.name.clone()))?;
 
         let memory_requirements = unsafe { base.device.get_image_memory_requirements(image) };
         let memory = unsafe {
@@ -92,7 +92,7 @@ impl DeviceImage {
                 None,
             )?
         };
-        base.name_object(&memory, format!("{}Memory", settings.name.clone()))?;
+        base.name_object(memory, format!("{}Memory", settings.name.clone()))?;
 
         unsafe { base.device.bind_image_memory(image, memory, 0) }?;
 

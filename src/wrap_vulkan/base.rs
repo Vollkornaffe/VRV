@@ -251,18 +251,18 @@ impl Base {
     }
 
     #[cfg(feature = "validation_vulkan")]
-    pub fn name_object<T: Clone + Handle>(&self, ash_object: &T, name: String) -> Result<()> {
+    pub fn name_object<T: Copy + Handle>(&self, ash_object: T, name: String) -> Result<()> {
         let c_str = std::ffi::CString::new(name).unwrap();
         log::debug!(
             "Naming object {:?} of type {:?}: {:?}",
-            ash_object.clone().as_raw(),
+            ash_object.as_raw(),
             T::TYPE,
             c_str
         );
 
         let name_info = DebugUtilsObjectNameInfoEXT::builder()
             .object_type(T::TYPE)
-            .object_handle(ash_object.clone().as_raw())
+            .object_handle(ash_object.as_raw())
             .object_name(&c_str);
         Ok(unsafe {
             self.debug
@@ -271,7 +271,7 @@ impl Base {
         }?)
     }
     #[cfg(not(feature = "validation_vulkan"))]
-    pub fn name_object<T: Clone + Handle>(&self, _: &T, _: String) -> Result<()> {
+    pub fn name_object<T: Copy + Handle>(&self, _: T, _: String) -> Result<()> {
         Ok(())
     }
 

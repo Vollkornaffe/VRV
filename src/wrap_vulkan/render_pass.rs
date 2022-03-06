@@ -68,6 +68,6 @@ pub fn create_render_pass_window(
             None,
         )
     }?;
-    base.name_object(&render_pass, "RenderPassWindow".to_string())?;
+    base.name_object(render_pass, "RenderPassWindow".to_string())?;
     Ok(render_pass)
 }

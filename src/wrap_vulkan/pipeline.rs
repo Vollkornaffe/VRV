@@ -22,7 +22,7 @@ pub fn create_pipeline_layout(base: &Base) -> Result<PipelineLayout> {
         base.device
             .create_pipeline_layout(&PipelineLayoutCreateInfo::builder(), None)
     }?;
-    base.name_object(&layout, "FirstPipelineLayout".to_string())?;
+    base.name_object(layout, "FirstPipelineLayout".to_string())?;
     Ok(layout)
 }
 
@@ -31,7 +31,7 @@ fn create_shader_module(base: &Base, spirv: &[u32], name: String) -> Result<Shad
         base.device
             .create_shader_module(&ShaderModuleCreateInfo::builder().code(spirv), None)
     }?;
-    base.name_object(&module, name)?;
+    base.name_object(module, name)?;
     Ok(module)
 }
 
@@ -152,7 +152,7 @@ pub fn create_pipeline(
         )
     }
     .map_err(|(_, e)| e)?[0];
-    base.name_object(&layout, "FirstPipeline".to_string())?;
+    base.name_object(layout, "FirstPipeline".to_string())?;
 
     unsafe {
         base.device.destroy_shader_module(module_vert, None);

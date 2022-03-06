@@ -8,7 +8,7 @@ pub fn create_semaphore(base: &Base, name: String) -> Result<Semaphore> {
         base.device
             .create_semaphore(&SemaphoreCreateInfo::builder(), None)
     }?;
-    base.name_object(&semaphore, name)?;
+    base.name_object(semaphore, name)?;
     Ok(semaphore)
 }
 
@@ -23,7 +23,7 @@ pub fn create_fence(base: &Base, signaled: bool, name: String) -> Result<Fence> 
             None,
         )
     }?;
-    base.name_object(&fence, name)?;
+    base.name_object(fence, name)?;
     Ok(fence)
 }
 

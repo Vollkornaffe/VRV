@@ -92,7 +92,7 @@ impl SwapchainRelated {
             )
         }?;
         // there is also the HMD swapchain
-        base.name_object(&handle, "WindowSwapchain".to_string())?;
+        base.name_object(handle, "WindowSwapchain".to_string())?;
 
         Ok(Self {
             surface_format,
@@ -112,7 +112,7 @@ impl SwapchainRelated {
         render_pass: RenderPass,
     ) -> Result<()> {
         let images = unsafe { self.loader.get_swapchain_images(self.handle) }?;
-        for (i, image) in images.iter().enumerate() {
+        for (i, &image) in images.iter().enumerate() {
             base.name_object(image, format!("WindowSwapchainImage_{}", i))?;
         }
 
@@ -143,7 +143,7 @@ impl SwapchainRelated {
                         None,
                     )?
                 };
-                base.name_object(&frame_buffer, format!("WindowSwapchainFrameBuffer_{}", i))?;
+                base.name_object(frame_buffer, format!("WindowSwapchainFrameBuffer_{}", i))?;
 
                 Ok(SwapElement {
                     image,
