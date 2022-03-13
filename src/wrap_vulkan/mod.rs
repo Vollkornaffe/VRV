@@ -1,4 +1,5 @@
 pub mod base;
+pub mod buffers;
 pub mod command;
 #[cfg(feature = "validation_vulkan")]
 pub mod debug;
