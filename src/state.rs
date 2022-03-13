@@ -2,8 +2,11 @@ use std::mem::ManuallyDrop;
 
 use anyhow::Result;
 use ash::vk::{
-    Fence, ImageAspectFlags, ImageTiling, ImageUsageFlags, MemoryPropertyFlags, Pipeline,
-    PipelineLayout, PipelineStageFlags, PresentInfoKHR, RenderPass, Semaphore, SubmitInfo,
+    ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
+    CommandBufferResetFlags, Fence, ImageAspectFlags, ImageTiling, ImageUsageFlags,
+    MemoryPropertyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
+    PresentInfoKHR, Rect2D, RenderPass, RenderPassBeginInfo, Semaphore, SubmitInfo,
+    SubpassContents,
 };
 use winit::window::Window;
 
@@ -37,6 +40,7 @@ pub struct State {
 impl Drop for State {
     fn drop(&mut self) {
         unsafe {
+            // takes care of command buffers
             self.vulkan
                 .device
                 .destroy_command_pool(self.command_related.pool, None);
@@ -80,9 +84,46 @@ impl State {
         }?;
 
         unsafe {
+            let d = &self.vulkan.device;
+            let cb = self.command_related.window_buffers[window_image_index as usize];
+
+            d.reset_command_buffer(cb, CommandBufferResetFlags::RELEASE_RESOURCES)?;
+            d.begin_command_buffer(cb, &CommandBufferBeginInfo::builder())?;
+            d.cmd_begin_render_pass(
+                cb,
+                &RenderPassBeginInfo::builder()
+                    .render_pass(self.window_render_pass)
+                    .framebuffer(
+                        self.window_swapchain.elements[window_image_index as usize].frame_buffer,
+                    )
+                    .render_area(*Rect2D::builder().extent(self.window_swapchain.extent))
+                    .clear_values(&[
+                        ClearValue {
+                            color: ClearColorValue::default(),
+                        },
+                        ClearValue {
+                            depth_stencil: ClearDepthStencilValue {
+                                depth: 1.0,
+                                stencil: 0,
+                            },
+                        },
+                    ]),
+                SubpassContents::INLINE,
+            );
+            d.cmd_bind_pipeline(cb, PipelineBindPoint::GRAPHICS, self.window_pipeline);
+            //d.cmd_bind_vertex_buffers(cb, 0, &[buffer], &[0]);
+            d.cmd_draw(cb, 3, 1, 0, 0);
+            d.cmd_end_render_pass(cb);
+            d.end_command_buffer(cb)?;
+        }
+
+        unsafe {
             self.vulkan.device.queue_submit(
                 self.command_related.queue,
                 &[SubmitInfo::builder()
+                    .command_buffers(&[
+                        self.command_related.window_buffers[window_image_index as usize]
+                    ])
                     .wait_semaphores(&[self.window_semaphore_image_acquired])
                     .wait_dst_stage_mask(&[PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
                     .signal_semaphores(&[self.window_semaphore_rendering_finished])
@@ -142,8 +183,6 @@ impl State {
             pipeline_layout,
         )?;
 
-        let command_related = CommandRelated::new(&vulkan)?;
-
         let window_semaphore_image_acquired =
             create_semaphore(&vulkan, "WindowSemaphoreImageAcquired".to_string())?;
         let window_semaphore_rendering_finished =
@@ -152,6 +191,12 @@ impl State {
             &vulkan,
             true, // we start with finished rendering
             "WindowFenceRenderingFinihsed".to_string(),
+        )?;
+
+        let command_related = CommandRelated::new(
+            &vulkan,
+            window_swapchain.image_count,
+            1, /* TODO get number of HMD images */
         )?;
 
         Ok(Self {
