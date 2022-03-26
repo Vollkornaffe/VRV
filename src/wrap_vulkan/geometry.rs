@@ -4,8 +4,8 @@ use itertools::izip;
 use std::{mem::size_of, path::Path};
 
 use ash::vk::{
-    BufferUsageFlags, Format, VertexInputAttributeDescription, VertexInputBindingDescription,
-    VertexInputRate,
+    Buffer, BufferUsageFlags, Format, VertexInputAttributeDescription,
+    VertexInputBindingDescription, VertexInputRate,
 };
 use memoffset::offset_of;
 
@@ -137,8 +137,8 @@ impl Mesh {
 }
 
 pub struct MeshBuffers {
-    vertex: MappedDeviceBuffer<Vertex>,
-    index: MappedDeviceBuffer<u32>,
+    pub vertex: MappedDeviceBuffer<Vertex>,
+    pub index: MappedDeviceBuffer<u32>,
 }
 
 impl MeshBuffers {
@@ -158,10 +158,14 @@ impl MeshBuffers {
 
         Ok(Self { vertex, index })
     }
+    pub unsafe fn destroy(&self, base: &Base) {
+        self.vertex.destroy(base);
+        self.index.destroy(base);
+    }
 }
 
 pub struct MappedMesh {
-    cpu: Mesh,
+    pub cpu: Mesh,
     gpu: MeshBuffers,
 }
 
@@ -174,5 +178,30 @@ impl MappedMesh {
         gpu.index.write(&cpu.indices);
 
         Ok(Self { cpu, gpu })
+    }
+
+    // TODO, this will be needed when meshes change
+    pub fn update_gpu(&mut self, base: &Base) -> Result<()> {
+        unimplemented!()
+    }
+
+    pub fn num_vertices(&self) -> usize {
+        self.gpu.vertex.size()
+    }
+
+    pub fn num_indices(&self) -> usize {
+        self.gpu.index.size()
+    }
+
+    pub fn vertex_buffer(&self) -> Buffer {
+        self.gpu.vertex.handle()
+    }
+
+    pub fn index_buffer(&self) -> Buffer {
+        self.gpu.index.handle()
+    }
+
+    pub unsafe fn destroy(&self, base: &Base) {
+        self.gpu.destroy(base);
     }
 }

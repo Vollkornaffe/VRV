@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use anyhow::Result;
 use ash::vk::{
     Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
-    CommandBufferResetFlags, Fence, ImageAspectFlags, ImageTiling, ImageUsageFlags,
+    CommandBufferResetFlags, Fence, ImageAspectFlags, ImageTiling, ImageUsageFlags, IndexType,
     MemoryPropertyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
     PresentInfoKHR, Rect2D, RenderPass, RenderPassBeginInfo, Semaphore, SubmitInfo,
     SubpassContents,
@@ -16,6 +16,7 @@ use crate::{
         self,
         command::CommandRelated,
         create_pipeline, create_pipeline_layout,
+        geometry::{MappedMesh, Mesh},
         sync::{create_fence, create_semaphore, wait_and_reset},
     },
 };
@@ -35,11 +36,14 @@ pub struct State {
     pub window_fence_rendering_finished: Fence,
 
     pub command_related: CommandRelated,
+
+    pub debug_mapped_mesh: MappedMesh,
 }
 
 impl Drop for State {
     fn drop(&mut self) {
         unsafe {
+            self.debug_mapped_mesh.destroy(&self.vulkan);
             // takes care of command buffers
             self.vulkan
                 .device
@@ -111,8 +115,14 @@ impl State {
                 SubpassContents::INLINE,
             );
             d.cmd_bind_pipeline(cb, PipelineBindPoint::GRAPHICS, self.window_pipeline);
-            //d.cmd_bind_vertex_buffers(cb, 0, &[TODO], &[0]);
-            d.cmd_draw(cb, 3, 1, 0, 0);
+            d.cmd_bind_vertex_buffers(cb, 0, &[self.debug_mapped_mesh.vertex_buffer()], &[0]);
+            d.cmd_bind_index_buffer(
+                cb,
+                self.debug_mapped_mesh.index_buffer(),
+                0,
+                IndexType::UINT32,
+            );
+            d.cmd_draw_indexed(cb, self.debug_mapped_mesh.num_indices() as u32, 1, 0, 0, 0);
             d.cmd_end_render_pass(cb);
             d.end_command_buffer(cb)?;
         }
@@ -199,6 +209,9 @@ impl State {
             1, /* TODO get number of HMD images */
         )?;
 
+        let debug_mapped_mesh =
+            MappedMesh::new(&vulkan, Mesh::debug_triangle(), "DebugMesh".to_string())?;
+
         Ok(Self {
             openxr: ManuallyDrop::new(openxr),
             vulkan: ManuallyDrop::new(vulkan),
@@ -211,6 +224,7 @@ impl State {
             window_semaphore_rendering_finished,
             window_fence_rendering_finished,
             command_related,
+            debug_mapped_mesh,
         })
     }
 }

@@ -104,6 +104,10 @@ impl<T> MappedDeviceBuffer<T> {
         }
     }
 
+    pub fn size(&self) -> usize {
+        self.buffer.len
+    }
+
     pub unsafe fn destroy(&self, base: &Base) {
         self.buffer.destroy(base);
     }
