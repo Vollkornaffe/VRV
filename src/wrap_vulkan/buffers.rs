@@ -89,10 +89,7 @@ impl<T> MappedDeviceBuffer<T> {
                 .map_memory(buffer.memory, 0, WHOLE_SIZE, MemoryMapFlags::empty())
         }? as *mut T;
 
-        Ok(Self {
-            buffer,
-            mapped_ptr,
-        })
+        Ok(Self { buffer, mapped_ptr })
     }
 
     pub fn handle(&self) -> Buffer {
@@ -102,7 +99,8 @@ impl<T> MappedDeviceBuffer<T> {
     pub fn write(&mut self, data: &[T]) {
         assert!(data.len() <= self.buffer.len);
         unsafe {
-            self.mapped_ptr.copy_from_nonoverlapping(data.as_ptr(), data.len());
+            self.mapped_ptr
+                .copy_from_nonoverlapping(data.as_ptr(), data.len());
         }
     }
 

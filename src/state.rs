@@ -2,7 +2,7 @@ use std::mem::ManuallyDrop;
 
 use anyhow::Result;
 use ash::vk::{
-    ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
+    Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
     CommandBufferResetFlags, Fence, ImageAspectFlags, ImageTiling, ImageUsageFlags,
     MemoryPropertyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
     PresentInfoKHR, Rect2D, RenderPass, RenderPassBeginInfo, Semaphore, SubmitInfo,
@@ -111,7 +111,7 @@ impl State {
                 SubpassContents::INLINE,
             );
             d.cmd_bind_pipeline(cb, PipelineBindPoint::GRAPHICS, self.window_pipeline);
-            //d.cmd_bind_vertex_buffers(cb, 0, &[buffer], &[0]);
+            //d.cmd_bind_vertex_buffers(cb, 0, &[TODO], &[0]);
             d.cmd_draw(cb, 3, 1, 0, 0);
             d.cmd_end_render_pass(cb);
             d.end_command_buffer(cb)?;
