@@ -82,7 +82,7 @@ impl Base {
         let instance_extensions = [
             ash_window::enumerate_required_extensions(window)?
                 .iter()
-                .map(|&x| x.into())
+                .map(|&x| unsafe { CStr::from_ptr(x) }.into()) // new rust version
                 .collect(),
             wrap_openxr.get_instance_extensions()?,
             // hehe sneaky
