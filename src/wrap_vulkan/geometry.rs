@@ -1,11 +1,11 @@
-use anyhow::{Error, Result};
+use anyhow::Result;
 use gltf::import;
 use itertools::izip;
-use std::{fmt::format, mem::size_of, path::Path};
+use std::{mem::size_of, path::Path};
 
 use ash::vk::{
-    BufferUsageFlags, Format, MemoryPropertyFlags, VertexInputAttributeDescription,
-    VertexInputBindingDescription, VertexInputRate,
+    BufferUsageFlags, Format, VertexInputAttributeDescription, VertexInputBindingDescription,
+    VertexInputRate,
 };
 use memoffset::offset_of;
 
@@ -28,23 +28,6 @@ pub struct Vertex {
 }
 
 impl Vertex {
-    pub fn debug_triangle() -> Vec<Self> {
-        vec![
-            Self {
-                pos: [0.0, -0.5, 0.0].into(),
-                col: [1.0, 0.0, 0.0].into(),
-            },
-            Self {
-                pos: [0.5, 0.5, 0.0].into(),
-                col: [0.0, 1.0, 0.0].into(),
-            },
-            Self {
-                pos: [-0.5, 0.5, 0.0].into(),
-                col: [0.0, 0.0, 1.0].into(),
-            },
-        ]
-    }
-
     pub fn get_binding_description() -> Vec<VertexInputBindingDescription> {
         vec![VertexInputBindingDescription::builder()
             .binding(0)
@@ -77,6 +60,25 @@ pub struct Mesh {
 }
 
 impl Mesh {
+    pub fn debug_triangle() -> Self {
+        let vertices = vec![
+            Vertex {
+                pos: [0.0, -0.5, 0.0].into(),
+                col: [1.0, 0.0, 0.0].into(),
+            },
+            Vertex {
+                pos: [0.5, 0.5, 0.0].into(),
+                col: [0.0, 1.0, 0.0].into(),
+            },
+            Vertex {
+                pos: [-0.5, 0.5, 0.0].into(),
+                col: [0.0, 0.0, 1.0].into(),
+            },
+        ];
+        let indices = vec![0, 1, 2];
+        Self { vertices, indices }
+    }
+
     pub fn load_gltf<P: AsRef<Path>>(base: &Base, filename: P) -> Result<Self> {
         let (gltf, buffers, _) = import(filename)?;
 
