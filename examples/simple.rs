@@ -12,7 +12,7 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let state = State::new(&window).unwrap();
+    let mut state = State::new(&window).unwrap();
 
     // not sure if this is the way I want it...
     // it is an honest approach in the sense that the window is "on top"
@@ -38,13 +38,17 @@ fn main() {
                         },
                     ..
                 } => *control_flow = ControlFlow::Exit,
-                WindowEvent::Resized(_physical_size) => {
-                    // resize
+                WindowEvent::Resized(new_inner_size) => {
+                    log::info!("Resizing to {:?}", new_inner_size);
+                    state.resize(&window).unwrap();
                 }
                 WindowEvent::ScaleFactorChanged {
-                    new_inner_size: _, ..
+                    scale_factor, // important for HUD and text in general
+                    new_inner_size,
                 } => {
-                    // resize
+                    log::info!("Changing scale to {}", scale_factor);
+                    log::info!("Resizing to {:?}", new_inner_size);
+                    state.resize(&window).unwrap();
                 }
                 _ => {}
             }

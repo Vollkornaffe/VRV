@@ -9,19 +9,21 @@ use winit::window::Window;
 use ash::{
     extensions::{ext::DebugUtils, khr::Swapchain},
     vk::{
-        api_version_major, api_version_minor, make_api_version, ApplicationInfo,
-        DebugUtilsObjectNameInfoEXT, DeviceCreateInfo, DeviceQueueCreateInfo, Format,
+        api_version_major, api_version_minor, ApplicationInfo,
+        DebugUtilsObjectNameInfoEXT, DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format,
         FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, MemoryPropertyFlags,
-        PhysicalDevice, QueueFlags,
+        PhysicalDevice, QueueFlags
     },
     Device, Entry, Instance,
 };
+
+use ash::vk::make_api_version;
 
 use crate::wrap_openxr;
 
 #[cfg(feature = "validation_vulkan")]
 use super::Debug;
-use super::SurfaceRelated;
+use super::{SurfaceRelated, surface::Detail};
 
 pub struct Base {
     pub entry: ManuallyDrop<Entry>,
@@ -179,7 +181,7 @@ impl Base {
             bail!("Vulkan phyiscal device doesn't support target version");
         }
 
-        let surface_related = SurfaceRelated::new(&entry, &instance, physical_device, window)?;
+        let surface_related = SurfaceRelated::new(&entry, &instance, window)?;
 
         let queue_family_index =
             unsafe { instance.get_physical_device_queue_family_properties(physical_device) }
@@ -339,4 +341,32 @@ impl Base {
             })
             .ok_or(Error::msg("Failed to find suitable memory type"))
     }
+
+    pub fn get_allowed_extend(&self, wanted: Extent2D) -> Result<Extent2D> {
+        let Detail { capabilities, .. } = self.surface_related.get_detail(&self)?;
+        Ok(if capabilities.current_extent.height == std::u32::MAX {
+            Extent2D {
+                width: std::cmp::max(
+                    capabilities.min_image_extent.width,
+                    std::cmp::min(capabilities.max_image_extent.width, wanted.width),
+                ),
+                height: std::cmp::max(
+                    capabilities.min_image_extent.height,
+                    std::cmp::min(capabilities.max_image_extent.height, wanted.height),
+                ),
+            }
+        } else {
+            // The extent of the swapchain can't be choosen freely, wanted is ignored
+            capabilities.current_extent
+        })
+    }
+
+    pub fn get_surface_format(&self) -> Result<Format> {
+        Ok(self.surface_related.get_detail(&self)?.format.format)
+    }
+
+    pub fn get_image_count(&self) -> Result<u32> {
+        Ok(self.surface_related.get_detail(&self)?.image_count)
+    }
+
 }

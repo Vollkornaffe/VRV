@@ -6,7 +6,6 @@ use ash::{
         ImageViewCreateInfo, ImageViewType, MemoryAllocateInfo, MemoryPropertyFlags,
         SampleCountFlags, SharingMode,
     },
-    Device,
 };
 
 use super::Base;
@@ -111,9 +110,9 @@ impl DeviceImage {
         })
     }
 
-    pub unsafe fn drop(&self, device: &Device) {
-        device.destroy_image_view(self.view, None);
-        device.destroy_image(self.image, None);
-        device.free_memory(self.memory, None);
+    pub unsafe fn destroy(&self, base: &Base) {
+        base.device.destroy_image_view(self.view, None);
+        base.device.destroy_image(self.image, None);
+        base.device.free_memory(self.memory, None);
     }
 }

@@ -79,7 +79,7 @@ impl Mesh {
         Self { vertices, indices }
     }
 
-    pub fn load_gltf<P: AsRef<Path>>(base: &Base, filename: P) -> Result<Self> {
+    pub fn load_gltf<P: AsRef<Path>>(filename: P) -> Result<Self> {
         let (gltf, buffers, _) = import(filename)?;
 
         let mut vertices = Vec::new();
@@ -181,7 +181,7 @@ impl MappedMesh {
     }
 
     // TODO, this will be needed when meshes change
-    pub fn update_gpu(&mut self, base: &Base) -> Result<()> {
+    pub fn update_gpu(&mut self, _base: &Base) -> Result<()> {
         unimplemented!()
     }
 

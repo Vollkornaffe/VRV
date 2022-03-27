@@ -1,21 +1,11 @@
-use std::{
-    ffi::{CStr, CString},
-    mem,
-    os::raw::c_char,
-    ptr::null_mut,
-};
+use std::ffi::CString;
 
 use anyhow::{bail, Result};
 use openxr::{
     raw::VulkanEnableKHR,
-    sys::{
-        self,
-        platform::{VkInstance, VkPhysicalDevice},
-        GraphicsRequirementsVulkanKHR,
-    },
+    sys,
     vulkan::Requirements,
-    ApplicationInfo, Entry, EnvironmentBlendMode, ExtensionSet, FormFactor, Instance,
-    StructureType, SystemId, Version, ViewConfigurationType, Vulkan,
+    ApplicationInfo, Entry, EnvironmentBlendMode, ExtensionSet, FormFactor, Instance, SystemId, ViewConfigurationType, Vulkan,
 };
 
 fn check(instance: &Instance, xr_result: sys::Result) -> Result<()> {
