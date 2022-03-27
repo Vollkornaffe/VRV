@@ -43,6 +43,11 @@ pub struct State {
 impl Drop for State {
     fn drop(&mut self) {
         unsafe {
+            self.vulkan
+                .device
+                .queue_wait_idle(self.command_related.queue)
+                .unwrap();
+
             self.debug_mapped_mesh.destroy(&self.vulkan);
             // takes care of command buffers
             self.vulkan
