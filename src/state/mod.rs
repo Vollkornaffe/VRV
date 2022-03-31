@@ -170,8 +170,7 @@ impl State {
 
         let image_count = vulkan.get_image_count()?;
 
-        let window_render_pass =
-            wrap_vulkan::create_render_pass_window(&vulkan)?;
+        let window_render_pass = wrap_vulkan::create_render_pass_window(&vulkan)?;
 
         let pipeline_layout = create_pipeline_layout(&vulkan)?;
 

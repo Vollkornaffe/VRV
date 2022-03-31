@@ -1,11 +1,9 @@
 use anyhow::Result;
-use ash::{
-    vk::{
-        DeviceMemory, Extent2D, Extent3D, Format, Image, ImageAspectFlags, ImageCreateInfo,
-        ImageLayout, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView,
-        ImageViewCreateInfo, ImageViewType, MemoryAllocateInfo, MemoryPropertyFlags,
-        SampleCountFlags, SharingMode,
-    },
+use ash::vk::{
+    DeviceMemory, Extent2D, Extent3D, Format, Image, ImageAspectFlags, ImageCreateInfo,
+    ImageLayout, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView,
+    ImageViewCreateInfo, ImageViewType, MemoryAllocateInfo, MemoryPropertyFlags, SampleCountFlags,
+    SharingMode,
 };
 
 use super::Base;

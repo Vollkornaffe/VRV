@@ -65,22 +65,14 @@ impl SurfaceRelated {
         })
     }
 
-    pub fn new(
-        entry: &Entry,
-        instance: &Instance,
-        window: &Window,
-    ) -> Result<Self> {
+    pub fn new(entry: &Entry, instance: &Instance, window: &Window) -> Result<Self> {
         let loader = Surface::new(entry, instance);
         let surface = unsafe { ash_window::create_surface(entry, instance, &window, None) }?;
 
-        Ok(Self {
-            loader,
-            surface,
-        })
+        Ok(Self { loader, surface })
     }
 
     pub fn get_detail(&self, base: &Base) -> Result<Detail> {
         Self::detail(&self.loader, *base.physical_device, self.surface)
     }
-
 }

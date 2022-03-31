@@ -2,10 +2,8 @@ use std::ffi::CString;
 
 use anyhow::{bail, Result};
 use openxr::{
-    raw::VulkanEnableKHR,
-    sys,
-    vulkan::Requirements,
-    ApplicationInfo, Entry, EnvironmentBlendMode, ExtensionSet, FormFactor, Instance, SystemId, ViewConfigurationType, Vulkan,
+    raw::VulkanEnableKHR, sys, vulkan::Requirements, ApplicationInfo, Entry, EnvironmentBlendMode,
+    ExtensionSet, FormFactor, Instance, SystemId, ViewConfigurationType, Vulkan,
 };
 
 fn check(instance: &Instance, xr_result: sys::Result) -> Result<()> {

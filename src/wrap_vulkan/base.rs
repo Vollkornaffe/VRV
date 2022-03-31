@@ -9,10 +9,9 @@ use winit::window::Window;
 use ash::{
     extensions::{ext::DebugUtils, khr::Swapchain},
     vk::{
-        api_version_major, api_version_minor, ApplicationInfo,
-        DebugUtilsObjectNameInfoEXT, DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format,
-        FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, MemoryPropertyFlags,
-        PhysicalDevice, QueueFlags
+        api_version_major, api_version_minor, ApplicationInfo, DebugUtilsObjectNameInfoEXT,
+        DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format, FormatFeatureFlags, Handle,
+        ImageTiling, InstanceCreateInfo, MemoryPropertyFlags, PhysicalDevice, QueueFlags,
     },
     Device, Entry, Instance,
 };
@@ -23,7 +22,7 @@ use crate::wrap_openxr;
 
 #[cfg(feature = "validation_vulkan")]
 use super::Debug;
-use super::{SurfaceRelated, surface::Detail};
+use super::{surface::Detail, SurfaceRelated};
 
 pub struct Base {
     pub entry: ManuallyDrop<Entry>,
@@ -368,5 +367,4 @@ impl Base {
     pub fn get_image_count(&self) -> Result<u32> {
         Ok(self.surface_related.get_detail(&self)?.image_count)
     }
-
 }

@@ -2,14 +2,13 @@ use anyhow::{bail, Error, Result};
 use ash::{
     extensions::khr::Swapchain,
     vk::{
-        CompositeAlphaFlagsKHR, Extent2D, Framebuffer,
-        FramebufferCreateInfo, Image, ImageAspectFlags, ImageUsageFlags, ImageView, PresentModeKHR,
-        RenderPass, SharingMode, SwapchainCreateInfoKHR, SwapchainKHR,
+        CompositeAlphaFlagsKHR, Extent2D, Framebuffer, FramebufferCreateInfo, Image,
+        ImageAspectFlags, ImageUsageFlags, ImageView, PresentModeKHR, RenderPass, SharingMode,
+        SwapchainCreateInfoKHR, SwapchainKHR,
     },
 };
 
-
-use super::{Base, DeviceImage, surface::Detail};
+use super::{surface::Detail, Base, DeviceImage};
 
 pub struct SwapElement {
     pub image: Image,
@@ -31,7 +30,12 @@ impl SwapchainRelated {
         extent: Extent2D,
         depth_view: ImageView,
     ) -> Result<Self> {
-        let Detail { capabilities, present_modes, image_count, format } = base.surface_related.get_detail(base)?;
+        let Detail {
+            capabilities,
+            present_modes,
+            image_count,
+            format,
+        } = base.surface_related.get_detail(base)?;
 
         // we don't want the window to block our rendering
         let present_mode = *present_modes

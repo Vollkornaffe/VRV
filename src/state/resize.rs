@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ash::vk::{
-    Extent2D, ImageAspectFlags, ImageTiling, ImageUsageFlags, MemoryPropertyFlags,
-    Pipeline, PipelineLayout, RenderPass,
+    Extent2D, ImageAspectFlags, ImageTiling, ImageUsageFlags, MemoryPropertyFlags, Pipeline,
+    PipelineLayout, RenderPass,
 };
 
 use crate::wrap_vulkan::{
@@ -38,8 +38,7 @@ impl ResizableWindowState {
             },
         )?;
 
-        let swapchain =
-            SwapchainRelated::new(base, render_pass, extent, depth_image.view)?;
+        let swapchain = SwapchainRelated::new(base, render_pass, extent, depth_image.view)?;
 
         let pipeline = create_pipeline(base, extent, render_pass, pipeline_layout)?;
 
