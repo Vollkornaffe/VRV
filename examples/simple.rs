@@ -39,6 +39,8 @@ fn main() {
                     ..
                 } => *control_flow = ControlFlow::Exit,
                 WindowEvent::Resized(new_inner_size) => {
+                    // TODO if the window is minimized, size is 0,0
+                    // we need to make vulkan chill
                     log::info!("Resizing to {:?}", new_inner_size);
                     state.resize(&window).unwrap();
                 }

@@ -24,7 +24,6 @@ impl ResizableWindowState {
     ) -> Result<Self> {
         let depth_format = base.find_supported_depth_stencil_format()?;
         let extent = base.get_allowed_extend(wanted)?;
-        log::error!("{:?} but got {:?}", wanted, extent);
 
         let depth_image = DeviceImage::new(
             base,
