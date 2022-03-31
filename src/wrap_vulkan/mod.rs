@@ -3,6 +3,7 @@ pub mod buffers;
 pub mod command;
 #[cfg(feature = "validation_vulkan")]
 pub mod debug;
+pub mod descriptors;
 pub mod device_image;
 pub mod geometry;
 pub mod pipeline;
