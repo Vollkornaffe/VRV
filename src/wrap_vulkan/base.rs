@@ -7,12 +7,11 @@ use std::{
 use winit::window::Window;
 
 use ash::{
-    extensions::{khr::Swapchain, ext::DebugUtils},
+    extensions::{ext::DebugUtils, khr::Swapchain},
     vk::{
-        api_version_major, api_version_minor, make_api_version, ApplicationInfo,
-        DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format,
-        FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, MemoryPropertyFlags,
-        PhysicalDevice, QueueFlags,
+        api_version_major, api_version_minor, make_api_version, ApplicationInfo, DeviceCreateInfo,
+        DeviceQueueCreateInfo, Extent2D, Format, FormatFeatureFlags, Handle, ImageTiling,
+        InstanceCreateInfo, MemoryPropertyFlags, PhysicalDevice, QueueFlags,
     },
     Device, Entry, Instance,
 };

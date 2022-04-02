@@ -105,40 +105,62 @@ impl DescriptorSets {
                 }?[0];
                 base.name_object(set, format!("{}Set_{}", name, i))?;
 
-                let base_write = |set, binding| {
-                    WriteDescriptorSet::builder()
-                        .dst_set(set)
-                        .dst_binding(binding)
-                        .dst_array_element(0)
-                        .descriptor_type(
-                            setup
-                                .get(&binding)
-                                .expect("Invalid binding for descriptor")
-                                .0,
-                        )
-                };
+                struct Info {
+                    binding: u32,
+                    buffer_infos: Vec<DescriptorBufferInfo>,
+                    image_infos: Vec<DescriptorImageInfo>,
+                }
+
+                let infos: Vec<Info> = usage_map
+                    .iter()
+                    .map(|(&binding, &usage)| match usage {
+                        Usage::Buffer(buffer) => Info {
+                            binding,
+                            buffer_infos: vec![DescriptorBufferInfo::builder()
+                                .buffer(buffer)
+                                .offset(0)
+                                .range(WHOLE_SIZE)
+                                .build()],
+                            image_infos: vec![],
+                        },
+                        Usage::ImageSampler(image_layout, image_view, sampler) => Info {
+                            binding,
+                            buffer_infos: vec![],
+                            image_infos: vec![DescriptorImageInfo::builder()
+                                .image_layout(image_layout)
+                                .image_view(image_view)
+                                .sampler(sampler)
+                                .build()],
+                        },
+                    })
+                    .collect();
+
                 unsafe {
                     base.device.update_descriptor_sets(
-                        &usage_map
+                        &infos
                             .iter()
-                            // TODO I don't really believe this works
-                            .map(|(&binding, &usage)| match usage {
-                                Usage::Buffer(buffer) => base_write(set, binding)
-                                    .buffer_info(&[DescriptorBufferInfo::builder()
-                                        .buffer(buffer)
-                                        .offset(0)
-                                        .range(WHOLE_SIZE)
-                                        .build()])
-                                    .build(),
-                                Usage::ImageSampler(image_layout, image_view, sampler) => {
-                                    base_write(set, binding)
-                                        .image_info(&[DescriptorImageInfo::builder()
-                                            .image_layout(image_layout)
-                                            .image_view(image_view)
-                                            .sampler(sampler)
-                                            .build()])
-                                        .build()
+                            .map(|info| {
+                                let incomplete = WriteDescriptorSet::builder()
+                                    .dst_set(set)
+                                    .dst_binding(info.binding)
+                                    .dst_array_element(0)
+                                    .descriptor_type(
+                                        setup
+                                            .get(&info.binding)
+                                            .expect("Invalid binding for descriptor")
+                                            .0,
+                                    );
+                                if !info.buffer_infos.is_empty() {
+                                    return incomplete
+                                        .buffer_info(info.buffer_infos.as_slice())
+                                        .build();
                                 }
+                                if !info.image_infos.is_empty() {
+                                    return incomplete
+                                        .image_info(info.image_infos.as_slice())
+                                        .build();
+                                }
+                                panic!("No buffer infos and no image infos");
                             })
                             .collect::<Vec<_>>(),
                         &[], // no copies
