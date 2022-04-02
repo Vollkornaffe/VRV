@@ -3,7 +3,7 @@ use crevice::std140::AsStd140;
 use mint::ColumnMatrix4;
 use resize::ResizableWindowState;
 
-use std::{collections::HashMap, mem::ManuallyDrop};
+use std::mem::ManuallyDrop;
 
 use anyhow::{Error, Result};
 use ash::vk::{
@@ -39,12 +39,12 @@ pub struct State {
     pub openxr: ManuallyDrop<wrap_openxr::State>,
     pub vulkan: ManuallyDrop<wrap_vulkan::base::Base>,
 
-    pub pipeline_layout: PipelineLayout,
-
     pub command_related: CommandRelated,
     pub debug_mapped_mesh: MappedMesh,
 
+    pub window_pipeline_layout: PipelineLayout,
     pub window_matrix_buffers: Vec<MappedDeviceBuffer<UniformMatrices>>,
+    pub window_descriptor_sets: DescriptorSets,
     pub window_render_pass: RenderPass,
     pub window_semaphore_image_acquired: Semaphore,
     pub window_semaphore_rendering_finished: Semaphore,
@@ -78,7 +78,7 @@ impl Drop for State {
                 .destroy_fence(self.window_fence_rendering_finished, None);
             self.vulkan
                 .device
-                .destroy_pipeline_layout(self.pipeline_layout, None);
+                .destroy_pipeline_layout(self.window_pipeline_layout, None);
             self.vulkan
                 .device
                 .destroy_render_pass(self.window_render_pass, None);
@@ -140,6 +140,14 @@ impl State {
                 self.debug_mapped_mesh.index_buffer(),
                 0,
                 IndexType::UINT32,
+            );
+            d.cmd_bind_descriptor_sets(
+                cb,
+                PipelineBindPoint::GRAPHICS,
+                self.window_pipeline_layout,
+                0,
+                &[self.window_descriptor_sets.sets[window_image_index as usize]],
+                &[],
             );
             d.cmd_draw_indexed(cb, self.debug_mapped_mesh.num_indices() as u32, 1, 0, 0, 0);
             d.cmd_end_render_pass(cb);
@@ -219,7 +227,7 @@ impl State {
             })
             .collect::<Result<_, Error>>()?;
 
-        let window_descriptorSets = DescriptorSets::new(
+        let window_descriptor_sets = DescriptorSets::new(
             &vulkan,
             [(
                 0,
@@ -235,7 +243,7 @@ impl State {
 
         let window_render_pass = wrap_vulkan::create_render_pass_window(&vulkan)?;
 
-        let pipeline_layout = create_pipeline_layout(&vulkan)?;
+        let window_pipeline_layout = create_pipeline_layout(&vulkan, &window_descriptor_sets)?;
 
         let window_semaphore_image_acquired =
             create_semaphore(&vulkan, "WindowSemaphoreImageAcquired".to_string())?;
@@ -259,7 +267,7 @@ impl State {
         let resizable_window_state = ResizableWindowState::new(
             &vulkan,
             window_render_pass,
-            pipeline_layout,
+            window_pipeline_layout,
             Extent2D {
                 width: window.inner_size().width,
                 height: window.inner_size().height,
@@ -269,10 +277,11 @@ impl State {
         Ok(Self {
             openxr: ManuallyDrop::new(openxr),
             vulkan: ManuallyDrop::new(vulkan),
-            pipeline_layout,
             command_related,
             debug_mapped_mesh,
+            window_pipeline_layout,
             window_matrix_buffers,
+            window_descriptor_sets,
             window_render_pass,
             window_semaphore_image_acquired,
             window_semaphore_rendering_finished,
@@ -293,7 +302,7 @@ impl State {
         self.resizable_window_state = ResizableWindowState::new(
             &self.vulkan,
             self.window_render_pass,
-            self.pipeline_layout,
+            self.window_pipeline_layout,
             Extent2D {
                 width: window.inner_size().width,
                 height: window.inner_size().height,

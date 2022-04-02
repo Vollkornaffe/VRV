@@ -172,7 +172,7 @@ pub struct MappedMesh {
 impl MappedMesh {
     pub fn new(base: &Base, mesh: Mesh, name: String) -> Result<Self> {
         let cpu = mesh;
-        let mut gpu = MeshBuffers::new(base, cpu.vertices.len(), cpu.indices.len(), name)?;
+        let gpu = MeshBuffers::new(base, cpu.vertices.len(), cpu.indices.len(), name)?;
 
         gpu.vertex.write(&cpu.vertices);
         gpu.index.write(&cpu.indices);

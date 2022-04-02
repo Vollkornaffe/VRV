@@ -14,13 +14,18 @@ use ash::vk::{
 };
 use vk_shader_macros::include_glsl;
 
-use super::{Base, Vertex};
+use super::{descriptors::DescriptorSets, Base, Vertex};
 
 // later we can add set layouts and more
-pub fn create_pipeline_layout(base: &Base) -> Result<PipelineLayout> {
+pub fn create_pipeline_layout(
+    base: &Base,
+    descriptor_sets: &DescriptorSets,
+) -> Result<PipelineLayout> {
     let layout = unsafe {
-        base.device
-            .create_pipeline_layout(&PipelineLayoutCreateInfo::builder(), None)
+        base.device.create_pipeline_layout(
+            &PipelineLayoutCreateInfo::builder().set_layouts(&[descriptor_sets.layout]),
+            None,
+        )
     }?;
     base.name_object(layout, "FirstPipelineLayout".to_string())?;
     Ok(layout)

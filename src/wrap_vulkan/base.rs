@@ -7,16 +7,15 @@ use std::{
 use winit::window::Window;
 
 use ash::{
-    extensions::{ext::DebugUtils, khr::Swapchain},
+    extensions::{khr::Swapchain, ext::DebugUtils},
     vk::{
-        api_version_major, api_version_minor, ApplicationInfo, DebugUtilsObjectNameInfoEXT,
-        DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format, FormatFeatureFlags, Handle,
-        ImageTiling, InstanceCreateInfo, MemoryPropertyFlags, PhysicalDevice, QueueFlags,
+        api_version_major, api_version_minor, make_api_version, ApplicationInfo,
+        DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format,
+        FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, MemoryPropertyFlags,
+        PhysicalDevice, QueueFlags,
     },
     Device, Entry, Instance,
 };
-
-use ash::vk::make_api_version;
 
 use crate::wrap_openxr;
 
@@ -253,6 +252,8 @@ impl Base {
 
     #[cfg(feature = "validation_vulkan")]
     pub fn name_object<T: Copy + Handle>(&self, ash_object: T, name: String) -> Result<()> {
+        use ash::vk::DebugUtilsObjectNameInfoEXT;
+
         let c_str = std::ffi::CString::new(name).unwrap();
         log::debug!(
             "Naming object {:?} of type {:?}: {:?}",
