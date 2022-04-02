@@ -1,11 +1,13 @@
 mod resize;
+use crevice::std140::AsStd140;
+use mint::ColumnMatrix4;
 use resize::ResizableWindowState;
 
 use std::mem::ManuallyDrop;
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use ash::vk::{
-    ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
+    BufferUsageFlags, ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
     CommandBufferResetFlags, Extent2D, Fence, IndexType, PipelineBindPoint, PipelineLayout,
     PipelineStageFlags, PresentInfoKHR, Rect2D, RenderPass, RenderPassBeginInfo, Semaphore,
     SubmitInfo, SubpassContents,
@@ -17,12 +19,20 @@ use crate::{
     wrap_openxr,
     wrap_vulkan::{
         self,
+        buffers::MappedDeviceBuffer,
         command::CommandRelated,
         create_pipeline_layout,
         geometry::{MappedMesh, Mesh},
         sync::{create_fence, create_semaphore, wait_and_reset},
     },
 };
+
+#[derive(AsStd140)]
+pub struct UniformMatrices {
+    pub model: ColumnMatrix4<f32>,
+    pub view: ColumnMatrix4<f32>,
+    pub proj: ColumnMatrix4<f32>,
+}
 
 pub struct State {
     pub openxr: ManuallyDrop<wrap_openxr::State>,
@@ -33,6 +43,7 @@ pub struct State {
     pub command_related: CommandRelated,
     pub debug_mapped_mesh: MappedMesh,
 
+    pub window_matrix_buffers: Vec<MappedDeviceBuffer<UniformMatrices>>,
     pub window_render_pass: RenderPass,
     pub window_semaphore_image_acquired: Semaphore,
     pub window_semaphore_rendering_finished: Semaphore,
@@ -170,6 +181,43 @@ impl State {
 
         let image_count = vulkan.get_image_count()?;
 
+        // TODO: use one buffer with offsets
+        let window_matrix_buffers = (0..image_count)
+            .into_iter()
+            .map(|i| {
+                let buffer = MappedDeviceBuffer::new(
+                    &vulkan,
+                    BufferUsageFlags::UNIFORM_BUFFER,
+                    1,
+                    format!("WindowMatrices_{}", i),
+                )?;
+                buffer.write(&[UniformMatrices {
+                    model: [
+                        [1.0, 0.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0, 0.0],
+                        [0.0, 0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0, 1.0],
+                    ]
+                    .into(),
+                    view: [
+                        [1.0, 0.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0, 0.0],
+                        [0.0, 0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0, 1.0],
+                    ]
+                    .into(),
+                    proj: [
+                        [1.0, 0.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0, 0.0],
+                        [0.0, 0.0, 1.0, 0.0],
+                        [0.0, 0.0, 0.0, 1.0],
+                    ]
+                    .into(),
+                }]);
+                Ok(buffer)
+            })
+            .collect::<Result<_, Error>>()?;
+
         let window_render_pass = wrap_vulkan::create_render_pass_window(&vulkan)?;
 
         let pipeline_layout = create_pipeline_layout(&vulkan)?;
@@ -209,6 +257,7 @@ impl State {
             pipeline_layout,
             command_related,
             debug_mapped_mesh,
+            window_matrix_buffers,
             window_render_pass,
             window_semaphore_image_acquired,
             window_semaphore_rendering_finished,

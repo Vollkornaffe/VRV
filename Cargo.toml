@@ -17,6 +17,7 @@ vk-shader-macros = "0.2.7"
 crevice = "0.8.0"
 gltf = "1.0.0"
 itertools = "0.10.3"
+mint = "0.5.9"
 
 [dev-dependencies]
 simplelog = "0.11.2"

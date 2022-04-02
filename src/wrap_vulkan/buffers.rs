@@ -96,7 +96,7 @@ impl<T> MappedDeviceBuffer<T> {
         self.buffer.handle
     }
 
-    pub fn write(&mut self, data: &[T]) {
+    pub fn write(&self, data: &[T]) {
         assert!(data.len() <= self.buffer.len);
         unsafe {
             self.mapped_ptr
