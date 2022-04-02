@@ -26,7 +26,7 @@ impl DescriptorSets {
     pub fn new(
         base: &Base,
         setup: HashMap<u32, (DescriptorType, ShaderStageFlags)>,
-        usages: Vec<HashMap<u32, Usage>>,
+        usages: &[HashMap<u32, Usage>],
         name: String,
     ) -> Result<Self> {
         let layout = unsafe {

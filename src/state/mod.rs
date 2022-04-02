@@ -3,14 +3,14 @@ use crevice::std140::AsStd140;
 use mint::ColumnMatrix4;
 use resize::ResizableWindowState;
 
-use std::mem::ManuallyDrop;
+use std::{collections::HashMap, mem::ManuallyDrop};
 
 use anyhow::{Error, Result};
 use ash::vk::{
     BufferUsageFlags, ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
-    CommandBufferResetFlags, Extent2D, Fence, IndexType, PipelineBindPoint, PipelineLayout,
-    PipelineStageFlags, PresentInfoKHR, Rect2D, RenderPass, RenderPassBeginInfo, Semaphore,
-    SubmitInfo, SubpassContents,
+    CommandBufferResetFlags, DescriptorType, Extent2D, Fence, IndexType, PipelineBindPoint,
+    PipelineLayout, PipelineStageFlags, PresentInfoKHR, Rect2D, RenderPass, RenderPassBeginInfo,
+    Semaphore, ShaderStageFlags, SubmitInfo, SubpassContents,
 };
 
 use winit::window::Window;
@@ -22,6 +22,7 @@ use crate::{
         buffers::MappedDeviceBuffer,
         command::CommandRelated,
         create_pipeline_layout,
+        descriptors::{DescriptorSets, Usage},
         geometry::{MappedMesh, Mesh},
         sync::{create_fence, create_semaphore, wait_and_reset},
     },
@@ -182,7 +183,7 @@ impl State {
         let image_count = vulkan.get_image_count()?;
 
         // TODO: use one buffer with offsets
-        let window_matrix_buffers = (0..image_count)
+        let window_matrix_buffers: Vec<MappedDeviceBuffer<UniformMatrices>> = (0..image_count)
             .into_iter()
             .map(|i| {
                 let buffer = MappedDeviceBuffer::new(
@@ -218,6 +219,20 @@ impl State {
             })
             .collect::<Result<_, Error>>()?;
 
+        let window_descriptorSets = DescriptorSets::new(
+            &vulkan,
+            [(
+                0,
+                (DescriptorType::UNIFORM_BUFFER, ShaderStageFlags::VERTEX),
+            )]
+            .into(),
+            &window_matrix_buffers
+                .iter()
+                .map(|buffer| [(0, Usage::Buffer(buffer.handle()))].into())
+                .collect::<Vec<_>>(),
+            "WindowDescriptorSets".to_string(),
+        )?;
+
         let window_render_pass = wrap_vulkan::create_render_pass_window(&vulkan)?;
 
         let pipeline_layout = create_pipeline_layout(&vulkan)?;
@@ -229,7 +244,7 @@ impl State {
         let window_fence_rendering_finished = create_fence(
             &vulkan,
             true, // we start with finished rendering
-            "WindowFenceRenderingFinihsed".to_string(),
+            "WindowFenceRenderingFinished".to_string(),
         )?;
 
         let command_related = CommandRelated::new(
