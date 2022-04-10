@@ -11,16 +11,6 @@ use memoffset::offset_of;
 
 use super::{buffers::MappedDeviceBuffer, Base};
 
-/* Going to use crevice to handle this stuff, also not needed for vertex buffers just yet
-#[repr(C, align(16))]
-pub struct Align16<T: Copy>(pub T);
-impl<T: Copy> From<T> for Align16<T> {
-    fn from(t: T) -> Self {
-        Self(t)
-    }
-}
-*/
-
 #[repr(C)]
 pub struct Vertex {
     pub pos: [f32; 3],
@@ -55,8 +45,8 @@ impl Vertex {
 }
 
 pub struct Mesh {
-    vertices: Vec<Vertex>,
-    indices: Vec<u32>,
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u32>,
 }
 
 impl Mesh {
@@ -139,6 +129,7 @@ impl Mesh {
 pub struct MeshBuffers {
     pub vertex: MappedDeviceBuffer<Vertex>,
     pub index: MappedDeviceBuffer<u32>,
+    pub name: String,
 }
 
 impl MeshBuffers {
@@ -156,52 +147,80 @@ impl MeshBuffers {
             format!("{}Index", name),
         )?;
 
-        Ok(Self { vertex, index })
-    }
-    pub unsafe fn destroy(&self, base: &Base) {
-        self.vertex.destroy(base);
-        self.index.destroy(base);
-    }
-}
-
-pub struct MappedMesh {
-    pub cpu: Mesh,
-    gpu: MeshBuffers,
-}
-
-impl MappedMesh {
-    pub fn new(base: &Base, mesh: Mesh, name: String) -> Result<Self> {
-        let cpu = mesh;
-        let gpu = MeshBuffers::new(base, cpu.vertices.len(), cpu.indices.len(), name)?;
-
-        gpu.vertex.write(&cpu.vertices);
-        gpu.index.write(&cpu.indices);
-
-        Ok(Self { cpu, gpu })
+        Ok(Self {
+            vertex,
+            index,
+            name,
+        })
     }
 
-    // TODO, this will be needed when meshes change
-    pub fn update_gpu(&mut self, _base: &Base) -> Result<()> {
-        unimplemented!()
+    pub fn resize_vertex(&mut self, base: &Base, new_size: usize) -> Result<()> {
+        if self.vertex.size() == new_size {
+            return Ok(());
+        }
+
+        unsafe { self.vertex.destroy(base) };
+
+        self.vertex = MappedDeviceBuffer::new(
+            base,
+            BufferUsageFlags::VERTEX_BUFFER,
+            new_size,
+            format!("{}Vertex", self.name),
+        )?;
+
+        Ok(())
+    }
+
+    pub fn resize_index(&mut self, base: &Base, new_size: usize) -> Result<()> {
+        if self.index.size() == new_size {
+            return Ok(());
+        }
+
+        unsafe { self.index.destroy(base) };
+
+        self.index = MappedDeviceBuffer::new(
+            base,
+            BufferUsageFlags::INDEX_BUFFER,
+            new_size,
+            format!("{}Index", self.name),
+        )?;
+
+        Ok(())
+    }
+
+    pub fn write(&mut self, base: &Base, mesh: &Mesh) -> Result<()> {
+        if self.vertex.size() < mesh.vertices.len() {
+            self.resize_vertex(base, mesh.vertices.len())?;
+        }
+
+        if self.index.size() < mesh.indices.len() {
+            self.resize_index(base, mesh.indices.len())?;
+        }
+
+        self.vertex.write(&mesh.vertices);
+        self.index.write(&mesh.indices);
+
+        Ok(())
     }
 
     pub fn num_vertices(&self) -> usize {
-        self.gpu.vertex.size()
+        self.vertex.size()
     }
 
     pub fn num_indices(&self) -> usize {
-        self.gpu.index.size()
+        self.index.size()
     }
 
     pub fn vertex_buffer(&self) -> Buffer {
-        self.gpu.vertex.handle()
+        self.vertex.handle()
     }
 
     pub fn index_buffer(&self) -> Buffer {
-        self.gpu.index.handle()
+        self.index.handle()
     }
 
     pub unsafe fn destroy(&self, base: &Base) {
-        self.gpu.destroy(base);
+        self.vertex.destroy(base);
+        self.index.destroy(base);
     }
 }

@@ -2,36 +2,37 @@ use std::ffi::CString;
 
 use anyhow::Result;
 use ash::vk::{
-    BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace,
-    GraphicsPipelineCreateInfo, LogicOp, Offset2D, Pipeline, PipelineCache,
-    PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
-    PipelineDepthStencilStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout,
+    BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, DescriptorSetLayout,
+    DynamicState, Extent2D, FrontFace, GraphicsPipelineCreateInfo, LogicOp, Offset2D, Pipeline,
+    PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
+    PipelineDepthStencilStateCreateInfo,
+    PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout,
     PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo,
     PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo,
     PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode,
     PrimitiveTopology, Rect2D, RenderPass, SampleCountFlags, ShaderModule, ShaderModuleCreateInfo,
     Viewport,
 };
-use vk_shader_macros::include_glsl;
 
-use super::{descriptors::DescriptorSets, Base, Vertex};
+use super::{Base, Vertex};
 
-// later we can add set layouts and more
+// later we can add push constants
 pub fn create_pipeline_layout(
     base: &Base,
-    descriptor_sets: &DescriptorSets,
+    set_layout: DescriptorSetLayout,
+    name: String,
 ) -> Result<PipelineLayout> {
     let layout = unsafe {
         base.device.create_pipeline_layout(
-            &PipelineLayoutCreateInfo::builder().set_layouts(&[descriptor_sets.layout]),
+            &PipelineLayoutCreateInfo::builder().set_layouts(&[set_layout]),
             None,
         )
     }?;
-    base.name_object(layout, "FirstPipelineLayout".to_string())?;
+    base.name_object(layout, name)?;
     Ok(layout)
 }
 
-fn create_shader_module(base: &Base, spirv: &[u32], name: String) -> Result<ShaderModule> {
+pub fn create_shader_module(base: &Base, spirv: &[u32], name: String) -> Result<ShaderModule> {
     let module = unsafe {
         base.device
             .create_shader_module(&ShaderModuleCreateInfo::builder().code(spirv), None)
@@ -42,16 +43,13 @@ fn create_shader_module(base: &Base, spirv: &[u32], name: String) -> Result<Shad
 
 pub fn create_pipeline(
     base: &Base,
-    extent: Extent2D,
     render_pass: RenderPass,
     layout: PipelineLayout,
+    module_vert: ShaderModule,
+    module_frag: ShaderModule,
+    initial_extent: Extent2D,
+    name: String,
 ) -> Result<Pipeline> {
-    const VERT: &[u32] = include_glsl!("shaders/example.vert");
-    const FRAG: &[u32] = include_glsl!("shaders/example.frag");
-
-    let module_vert = create_shader_module(base, VERT, "ShaderVert".to_string())?;
-    let module_frag = create_shader_module(base, FRAG, "ShaderFrag".to_string())?;
-
     let vertex_bindings = Vertex::get_binding_description();
     let vertex_attributes = Vertex::get_attribute_description();
 
@@ -87,14 +85,14 @@ pub fn create_pipeline(
                         .viewports(&[Viewport::builder()
                             .x(0.0)
                             .y(0.0)
-                            .width(extent.width as f32)
-                            .height(extent.height as f32)
+                            .width(initial_extent.width as f32)
+                            .height(initial_extent.height as f32)
                             .min_depth(0.0)
                             .max_depth(1.0)
                             .build()])
                         .scissors(&[Rect2D::builder()
                             .offset(Offset2D { x: 0, y: 0 })
-                            .extent(extent)
+                            .extent(initial_extent)
                             .build()]),
                 )
                 .rasterization_state(
@@ -149,6 +147,10 @@ pub fn create_pipeline(
                         .max_depth_bounds(1.0)
                         .stencil_test_enable(false),
                 )
+                .dynamic_state(
+                    &PipelineDynamicStateCreateInfo::builder()
+                        .dynamic_states(&[DynamicState::VIEWPORT, DynamicState::SCISSOR]),
+                )
                 .layout(layout)
                 .render_pass(render_pass)
                 .subpass(0)
@@ -157,12 +159,7 @@ pub fn create_pipeline(
         )
     }
     .map_err(|(_, e)| e)?[0];
-    base.name_object(layout, "FirstPipeline".to_string())?;
-
-    unsafe {
-        base.device.destroy_shader_module(module_vert, None);
-        base.device.destroy_shader_module(module_frag, None);
-    }
+    base.name_object(pipeline, name)?;
 
     Ok(pipeline)
 }

@@ -10,10 +10,9 @@ use ash::vk::{
 
 use super::Base;
 
-pub struct DescriptorSets {
+pub struct DescriptorRelated {
     pub layout: DescriptorSetLayout,
-    pub pool: DescriptorPool,
-    pub sets: Vec<DescriptorSet>,
+    pool: DescriptorPool,
 }
 
 #[derive(Clone, Copy)]
@@ -22,13 +21,13 @@ pub enum Usage {
     ImageSampler(ImageLayout, ImageView, Sampler),
 }
 
-impl DescriptorSets {
-    pub fn new(
+impl DescriptorRelated {
+    pub fn new_with_sets(
         base: &Base,
         setup: HashMap<u32, (DescriptorType, ShaderStageFlags)>,
         usages: &[HashMap<u32, Usage>],
         name: String,
-    ) -> Result<Self> {
+    ) -> Result<(Self, Vec<DescriptorSet>)> {
         let layout = unsafe {
             base.device.create_descriptor_set_layout(
                 &DescriptorSetLayoutCreateInfo::builder().bindings(
@@ -171,7 +170,7 @@ impl DescriptorSets {
             })
             .collect::<Result<_, Error>>()?;
 
-        Ok(Self { layout, pool, sets })
+        Ok((Self { layout, pool }, sets))
     }
 
     pub unsafe fn destroy(&self, base: &Base) {

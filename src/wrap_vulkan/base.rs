@@ -9,9 +9,11 @@ use winit::window::Window;
 use ash::{
     extensions::{ext::DebugUtils, khr::Swapchain},
     vk::{
-        api_version_major, api_version_minor, make_api_version, ApplicationInfo, DeviceCreateInfo,
-        DeviceQueueCreateInfo, Extent2D, Format, FormatFeatureFlags, Handle, ImageTiling,
-        InstanceCreateInfo, MemoryPropertyFlags, PhysicalDevice, QueueFlags,
+        api_version_major, api_version_minor, make_api_version, ApplicationInfo, CommandBuffer,
+        CommandBufferAllocateInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags,
+        CommandPoolCreateInfo, DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format,
+        FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, MemoryPropertyFlags,
+        PhysicalDevice, Queue, QueueFlags,
     },
     Device, Entry, Instance,
 };
@@ -33,6 +35,9 @@ pub struct Base {
 
     pub queue_family_index: u32,
     pub surface_related: ManuallyDrop<SurfaceRelated>,
+
+    pub pool: CommandPool,
+    pub queue: Queue,
 }
 
 impl Drop for Base {
@@ -235,6 +240,20 @@ impl Base {
             )
         }?;
 
+        let pool = unsafe {
+            device.create_command_pool(
+                &CommandPoolCreateInfo::builder()
+                    .flags(
+                        CommandPoolCreateFlags::RESET_COMMAND_BUFFER
+                            | CommandPoolCreateFlags::TRANSIENT,
+                    )
+                    .queue_family_index(queue_family_index),
+                None,
+            )
+        }?;
+
+        let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
+
         Ok(Self {
             entry: ManuallyDrop::new(entry),
             instance: ManuallyDrop::new(instance),
@@ -246,6 +265,9 @@ impl Base {
 
             queue_family_index,
             surface_related: ManuallyDrop::new(surface_related),
+
+            pool,
+            queue,
         })
     }
 
@@ -366,5 +388,26 @@ impl Base {
 
     pub fn get_image_count(&self) -> Result<u32> {
         Ok(self.surface_related.get_detail(&self)?.image_count)
+    }
+
+    pub fn wait_idle(&self) -> Result<()> {
+        Ok(unsafe { self.device.queue_wait_idle(self.queue) }?)
+    }
+
+    pub fn alloc_command_buffers(&self, count: u32, name: String) -> Result<Vec<CommandBuffer>> {
+        let buffers = unsafe {
+            self.device.allocate_command_buffers(
+                &CommandBufferAllocateInfo::builder()
+                    .command_pool(self.pool)
+                    .level(CommandBufferLevel::PRIMARY)
+                    .command_buffer_count(count),
+            )
+        }?;
+
+        for (i, &cb) in buffers.iter().enumerate() {
+            self.name_object(cb, format!("{}_{}", name, i))?;
+        }
+
+        Ok(buffers)
     }
 }
