@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use ash::vk::Extent2D;
-use cgmath::{perspective, Deg, Matrix4};
+use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, Vector3};
 use per_frame::PerFrame;
 use simplelog::{Config, SimpleLogger};
 use vk_shader_macros::include_glsl;
@@ -81,20 +81,17 @@ fn main() {
                     [0.0, 0.0, 0.0, 1.0],
                 ]
                 .into(),
-                view: [
-                    [1.0, 0.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 1.0, 0.0],
-                    [0.0, 0.0, 0.0, 1.0],
-                ]
-                .into(),
+                view: Matrix4::look_at_rh(
+                    Point3::new(4.0, 4.0, 4.0),
+                    Point3::origin(),
+                    Vector3::unit_z(),
+                ),
                 proj: perspective(
                     Deg(45.0),
                     window.inner_size().width as f32 / window.inner_size().height as f32,
                     0.1,
                     100.0,
-                )
-                .into(),
+                ),
             }]);
 
             state
