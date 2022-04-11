@@ -1,12 +1,12 @@
+use std::time::Instant;
+
 use ash::vk::Extent2D;
+use cgmath::{perspective, Deg, Matrix4};
 use per_frame::PerFrame;
 use simplelog::{Config, SimpleLogger};
 use vk_shader_macros::include_glsl;
 use vrv::{
-    wrap_vulkan::{
-        create_pipeline, create_pipeline_layout,
-        pipeline::create_shader_module,
-    },
+    wrap_vulkan::{create_pipeline, create_pipeline_layout, pipeline::create_shader_module},
     State,
 };
 use winit::{
@@ -14,6 +14,8 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
+
+use crate::per_frame::UniformMatrices;
 
 mod per_frame;
 
@@ -59,6 +61,8 @@ fn main() {
         state.vulkan.device.destroy_shader_module(module_frag, None);
     }
 
+    let start = Instant::now();
+
     // not sure if this is the way I want it...
     // it is an honest approach in the sense that the window is "on top"
     event_loop.run(move |event, _, control_flow| match event {
@@ -67,8 +71,31 @@ fn main() {
 
             let current_frame = &per_frame_buffers[pre_render_info.image_index as usize];
 
-            // TODO
-            //state.set_camera_matrices_window().unwrap();
+            let t = start.elapsed().as_secs_f32();
+
+            current_frame.matrix_buffer.write(&[UniformMatrices {
+                model: [
+                    [t.cos(), -t.sin(), 0.0, 0.0],
+                    [t.sin(), t.cos(), 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ]
+                .into(),
+                view: [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ]
+                .into(),
+                proj: perspective(
+                    Deg(45.0),
+                    window.inner_size().width as f32 / window.inner_size().height as f32,
+                    0.1,
+                    100.0,
+                )
+                .into(),
+            }]);
 
             state
                 .render(

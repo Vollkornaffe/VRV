@@ -1,8 +1,8 @@
 use anyhow::{Error, Result};
 use ash::vk::{BufferUsageFlags, DescriptorSet, DescriptorType, ShaderStageFlags};
+use cgmath::Matrix4;
 use crevice::std140::AsStd140;
 use itertools::izip;
-use mint::ColumnMatrix4;
 use vrv::wrap_vulkan::{
     buffers::MappedDeviceBuffer,
     descriptors::{DescriptorRelated, Usage},
@@ -12,9 +12,9 @@ use vrv::wrap_vulkan::{
 
 #[derive(AsStd140)]
 pub struct UniformMatrices {
-    pub model: ColumnMatrix4<f32>,
-    pub view: ColumnMatrix4<f32>,
-    pub proj: ColumnMatrix4<f32>,
+    pub model: Matrix4<f32>,
+    pub view: Matrix4<f32>,
+    pub proj: Matrix4<f32>,
 }
 
 pub struct PerFrame {

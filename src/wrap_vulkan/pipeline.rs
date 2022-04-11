@@ -5,13 +5,12 @@ use ash::vk::{
     BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, DescriptorSetLayout,
     DynamicState, Extent2D, FrontFace, GraphicsPipelineCreateInfo, LogicOp, Offset2D, Pipeline,
     PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo,
-    PipelineDepthStencilStateCreateInfo,
-    PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineLayout,
-    PipelineLayoutCreateInfo, PipelineMultisampleStateCreateInfo,
-    PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo,
-    PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PolygonMode,
-    PrimitiveTopology, Rect2D, RenderPass, SampleCountFlags, ShaderModule, ShaderModuleCreateInfo,
-    Viewport,
+    PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo,
+    PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineLayoutCreateInfo,
+    PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo,
+    PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo,
+    PipelineViewportStateCreateInfo, PolygonMode, PrimitiveTopology, Rect2D, RenderPass,
+    SampleCountFlags, ShaderModule, ShaderModuleCreateInfo, Viewport,
 };
 
 use super::{Base, Vertex};
