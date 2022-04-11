@@ -25,7 +25,8 @@ pub struct PerFrame {
 
 impl PerFrame {
     pub fn new_vec(base: &Base) -> Result<(Vec<Self>, DescriptorRelated)> {
-        let debug_mesh = Mesh::debug_triangle();
+
+        let debug_mesh = Mesh::load_gltf("examples/simple/untitled.glb")?;
 
         let image_count = base.get_image_count()?;
 
