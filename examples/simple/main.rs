@@ -1,7 +1,7 @@
 use std::{collections::HashSet, time::Instant};
 
 use ash::vk::Extent2D;
-use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, Vector3};
+use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector3};
 use openxr::Instance;
 use per_frame::PerFrame;
 use simplelog::{Config, SimpleLogger};
@@ -115,13 +115,7 @@ fn main() {
             }
 
             current_frame.matrix_buffer.write(&[UniformMatrices {
-                model: [
-                    [1.0, 0.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 1.0, 0.0],
-                    [0.0, 0.0, 0.0, 1.0],
-                ]
-                .into(),
+                model: Matrix4::identity(),
                 view: Matrix4::look_at_rh(
                     spherical_coords.to_coords(),
                     Point3::origin(),

@@ -1,6 +1,6 @@
 use anyhow::{Error, Result};
 use ash::vk::{BufferUsageFlags, DescriptorSet, DescriptorType, ShaderStageFlags};
-use cgmath::Matrix4;
+use cgmath::{Matrix4, SquareMatrix};
 use crevice::std140::AsStd140;
 use itertools::izip;
 use vrv::wrap_vulkan::{
@@ -25,7 +25,6 @@ pub struct PerFrame {
 
 impl PerFrame {
     pub fn new_vec(base: &Base) -> Result<(Vec<Self>, DescriptorRelated)> {
-
         let debug_mesh = Mesh::load_gltf("examples/simple/untitled.glb")?;
 
         let image_count = base.get_image_count()?;
@@ -40,27 +39,9 @@ impl PerFrame {
                     format!("WindowMatrices_{}", index),
                 )?;
                 matrix_buffer.write(&[UniformMatrices {
-                    model: [
-                        [1.0, 0.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0],
-                        [0.0, 0.0, 0.0, 1.0],
-                    ]
-                    .into(),
-                    view: [
-                        [1.0, 0.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0],
-                        [0.0, 0.0, 0.0, 1.0],
-                    ]
-                    .into(),
-                    proj: [
-                        [1.0, 0.0, 0.0, 0.0],
-                        [0.0, 1.0, 0.0, 0.0],
-                        [0.0, 0.0, 1.0, 0.0],
-                        [0.0, 0.0, 0.0, 1.0],
-                    ]
-                    .into(),
+                    model: Matrix4::identity(),
+                    view: Matrix4::identity(),
+                    proj: Matrix4::identity(),
                 }]);
 
                 Ok(matrix_buffer)
