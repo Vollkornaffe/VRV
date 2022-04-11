@@ -1,7 +1,8 @@
-use std::time::Instant;
+use std::{collections::HashSet, time::Instant};
 
 use ash::vk::Extent2D;
 use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, Vector3};
+use openxr::Instance;
 use per_frame::PerFrame;
 use simplelog::{Config, SimpleLogger};
 use vk_shader_macros::include_glsl;
@@ -18,6 +19,24 @@ use winit::{
 use crate::per_frame::UniformMatrices;
 
 mod per_frame;
+
+#[derive(Copy, Clone, Debug, Default)]
+struct SphereCoords {
+    pub phi: f32,
+    pub theta: f32,
+    pub radius: f32,
+}
+
+impl SphereCoords {
+    pub fn to_coords(&self) -> Point3<f32> {
+        [
+            self.radius * self.phi.cos() * self.theta.sin(),
+            self.radius * self.phi.sin() * self.theta.sin(),
+            self.radius * self.theta.cos(),
+        ]
+        .into()
+    }
+}
 
 fn main() {
     let _ = SimpleLogger::init(log::LevelFilter::Warn, Config::default());
@@ -61,7 +80,14 @@ fn main() {
         state.vulkan.device.destroy_shader_module(module_frag, None);
     }
 
-    let start = Instant::now();
+    let mut spherical_coords = SphereCoords {
+        phi: 0.0,
+        theta: std::f32::consts::FRAC_PI_8,
+        radius: 4.0,
+    };
+
+    let mut check = Instant::now();
+    let mut pressed_keys = HashSet::new();
 
     // not sure if this is the way I want it...
     // it is an honest approach in the sense that the window is "on top"
@@ -71,18 +97,33 @@ fn main() {
 
             let current_frame = &per_frame_buffers[pre_render_info.image_index as usize];
 
-            let t = start.elapsed().as_secs_f32();
+            let dt = check.elapsed().as_secs_f32();
+            check = Instant::now();
+
+            let speed = 2.0;
+
+            for code in &pressed_keys {
+                match code {
+                    VirtualKeyCode::Q => spherical_coords.radius += dt * speed,
+                    VirtualKeyCode::E => spherical_coords.radius -= dt * speed,
+                    VirtualKeyCode::W => spherical_coords.theta += dt * speed,
+                    VirtualKeyCode::S => spherical_coords.theta -= dt * speed,
+                    VirtualKeyCode::A => spherical_coords.phi += dt * speed,
+                    VirtualKeyCode::D => spherical_coords.phi -= dt * speed,
+                    _ => {}
+                }
+            }
 
             current_frame.matrix_buffer.write(&[UniformMatrices {
                 model: [
-                    [t.cos(), -t.sin(), 0.0, 0.0],
-                    [t.sin(), t.cos(), 0.0, 0.0],
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
                     [0.0, 0.0, 1.0, 0.0],
                     [0.0, 0.0, 0.0, 1.0],
                 ]
                 .into(),
                 view: Matrix4::look_at_rh(
-                    Point3::new(4.0, 4.0, 4.0),
+                    spherical_coords.to_coords(),
                     Point3::origin(),
                     Vector3::unit_z(),
                 ),
@@ -134,6 +175,21 @@ fn main() {
                     log::info!("Changing scale to {}", scale_factor);
                     log::info!("Resizing to {:?}", new_inner_size);
                     state.resize(&window).unwrap();
+                }
+                // camera movement
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            state,
+                            virtual_keycode: Some(code),
+                            ..
+                        },
+                    ..
+                } => {
+                    _ = match state {
+                        ElementState::Pressed => pressed_keys.insert(*code),
+                        ElementState::Released => pressed_keys.remove(code),
+                    }
                 }
                 _ => {}
             }
