@@ -1,6 +1,7 @@
 use std::ffi::CString;
 
 use anyhow::{bail, Result};
+use ash::vk::Extent2D;
 use openxr::{
     raw::VulkanEnableKHR, sys, vulkan::Requirements, ApplicationInfo, Entry, EnvironmentBlendMode,
     ExtensionSet, FormFactor, Instance, SystemId, ViewConfigurationType, Vulkan,
@@ -233,5 +234,23 @@ impl State {
         Ok(self
             .instance
             .vulkan_graphics_device(self.system_id, vk_instance as _)? as _)
+    }
+
+    pub fn get_resolution(&self) -> Result<Extent2D> {
+        let views = self.instance.enumerate_view_configuration_views(self.system_id, ViewConfigurationType::PRIMARY_STEREO)?;
+
+        if views.len() != 2 {
+            bail!("Views are not 2");
+        }
+        if views[0].recommended_image_rect_width != views[1].recommended_image_rect_width
+            || views[0].recommended_image_rect_height != views[1].recommended_image_rect_height
+        {
+            bail!("Views don't have equal resolution?");
+        }
+
+        Ok(Extent2D {
+            width: views[0].recommended_image_rect_width,
+            height: views[0].recommended_image_rect_height,
+        })
     }
 }
