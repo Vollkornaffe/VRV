@@ -17,7 +17,8 @@ use crate::{
     wrap_vulkan::{
         self, create_render_pass_window,
         geometry::MeshBuffers,
-        sync::{create_fence, create_semaphore, wait_and_reset}, swapchain,
+        swapchain,
+        sync::{create_fence, create_semaphore, wait_and_reset},
     },
 };
 
@@ -239,7 +240,6 @@ impl State {
         //hmd_extent,
         //format: Format,
         //)?;
-
 
         // Setup Window
 

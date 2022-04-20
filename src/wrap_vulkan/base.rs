@@ -83,17 +83,16 @@ impl Base {
             bail!("OpenXR needs other Vulkan version");
         }
 
-        let instance_extensions = [
+        let instance_extensions: Vec<CString> = [
             ash_window::enumerate_required_extensions(window)?
                 .iter()
-                .map(|&x| unsafe { CStr::from_ptr(x) }.into()) // new rust version
-                .collect(),
-            wrap_openxr.get_instance_extensions()?,
+                .map(|&x| -> CString { unsafe { CStr::from_ptr(x) }.into() }) // new rust version
+                .collect::<Vec<_>>(),
             // hehe sneaky
             #[cfg(feature = "validation_vulkan")]
             vec![DebugUtils::name().into()],
         ]
-        .concat();
+        .concat::<CString>();
 
         log::trace!("Vulkan instance extensions: {:?}", instance_extensions);
 
@@ -105,7 +104,8 @@ impl Base {
         // I really couldn't find a better way to do this
         // the problem is that push_next can't take a "null object"
         let instance = unsafe {
-            entry.create_instance(
+            wrap_openxr.get_vulkan_instance(
+                &entry,
                 #[cfg(feature = "validation_vulkan")]
                 &InstanceCreateInfo::builder()
                     .application_info(&ApplicationInfo::builder().api_version(vk_target_version))
@@ -126,7 +126,6 @@ impl Base {
                             .map(|ext| ext.as_c_str().as_ptr())
                             .collect::<Vec<_>>(),
                     ),
-                None,
             )
         }?;
 
@@ -148,8 +147,7 @@ impl Base {
         }
 
         // leverage OpenXR to choose for us
-        let physical_device =
-            PhysicalDevice::from_raw(wrap_openxr.get_physical_device(instance.handle().as_raw())?);
+        let physical_device = wrap_openxr.get_vulkan_physical_device(&instance)?;
 
         let physical_device_extension_properties =
             unsafe { instance.enumerate_device_extension_properties(physical_device) }?;
@@ -159,11 +157,7 @@ impl Base {
             });
         }
 
-        let device_extensions: Vec<CString> = [
-            wrap_openxr.get_device_extensions()?,
-            vec![Swapchain::name().into()],
-        ]
-        .concat();
+        let device_extensions: Vec<CString> = vec![Swapchain::name().into()];
 
         log::trace!("Vulkan device extensions: {:?}", device_extensions);
 
@@ -218,7 +212,9 @@ impl Base {
         log::trace!("Using queue nr. {}", queue_family_index);
 
         let device = unsafe {
-            instance.create_device(
+            wrap_openxr.get_vulkan_device(
+                &entry,
+                &instance,
                 physical_device,
                 &DeviceCreateInfo::builder()
                     .queue_create_infos(&[DeviceQueueCreateInfo::builder()
@@ -236,7 +232,6 @@ impl Base {
                     } else {
                         &[]
                     }),
-                None,
             )
         }?;
 

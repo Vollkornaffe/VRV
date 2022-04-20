@@ -1,11 +1,11 @@
-use std::ffi::CString;
-
-use anyhow::{bail, Result, Error};
-use ash::vk::{Extent2D, Format, Handle};
+use anyhow::{bail, Error, Result};
+use ash::vk::{
+    self, DeviceCreateInfoBuilder, Extent2D, Format, Handle, InstanceCreateInfoBuilder,
+    PhysicalDevice,
+};
 use openxr::{
-    raw::VulkanEnableKHR,
     sys,
-    vulkan::{self, Requirements, SessionCreateInfo},
+    vulkan::{Requirements, SessionCreateInfo},
     ApplicationInfo, Entry, EnvironmentBlendMode, ExtensionSet, FormFactor, FrameStream,
     FrameWaiter, Instance, Session, Swapchain, SwapchainCreateFlags, SwapchainCreateInfo,
     SwapchainUsageFlags, SystemId, ViewConfigurationType, Vulkan,
@@ -126,7 +126,6 @@ pub struct Base {
     pub entry: Entry,
     pub instance: Instance,
     pub system_id: SystemId,
-    pub vk_fns: VulkanEnableKHR,
 }
 
 impl Base {
@@ -142,7 +141,7 @@ impl Base {
         log::trace!("OpenXR available extensions: {:?}", available_extensions);
         log::trace!("OpenXR available layers: {:?}", available_layers);
 
-        assert!(available_extensions.khr_vulkan_enable);
+        assert!(available_extensions.khr_vulkan_enable2);
 
         #[cfg(feature = "validation_openxr")]
         assert!(
@@ -154,7 +153,7 @@ impl Base {
         );
 
         let mut enabled_extensions = ExtensionSet::default();
-        enabled_extensions.khr_vulkan_enable = true;
+        enabled_extensions.khr_vulkan_enable2 = true;
         if cfg!(feature = "validation_openxr") {
             enabled_extensions.ext_debug_utils = true;
         }
@@ -194,8 +193,6 @@ impl Base {
             bail!("Only OPAQUE mode allowed");
         }
 
-        let vk_fns = unsafe { VulkanEnableKHR::load(&entry, instance.as_raw()) }?;
-
         Ok(Self {
             #[cfg(feature = "validation_openxr")]
             debug,
@@ -203,7 +200,6 @@ impl Base {
             entry,
             instance,
             system_id,
-            vk_fns,
         })
     }
 
@@ -213,33 +209,56 @@ impl Base {
             .graphics_requirements::<Vulkan>(self.system_id)?)
     }
 
-    pub fn get_instance_extensions(&self) -> Result<Vec<CString>> {
-        let result: Result<_, _> = self
-            .instance
-            .vulkan_legacy_instance_extensions(self.system_id)?
-            .split(' ')
-            .map(|s| CString::new(s))
-            .collect();
-        Ok(result?)
+    pub unsafe fn get_vulkan_instance(
+        &self,
+        vk_entry: &ash::Entry,
+        info: &InstanceCreateInfoBuilder,
+    ) -> Result<ash::Instance> {
+        Ok(ash::Instance::load(
+            vk_entry.static_fn(),
+            ash::vk::Instance::from_raw(
+                self.instance
+                    .create_vulkan_instance(
+                        self.system_id,
+                        std::mem::transmute(vk_entry.static_fn().get_instance_proc_addr),
+                        info as *const _ as *const _,
+                    )?
+                    .map_err(vk::Result::from_raw)? as u64,
+            ),
+        ))
     }
 
-    pub fn get_device_extensions(&self) -> Result<Vec<CString>> {
-        let result: Result<_, _> = self
-            .instance
-            .vulkan_legacy_device_extensions(self.system_id)?
-            .split(' ')
-            .map(|s| CString::new(s))
-            // this debug marker extension is now part of debug utils and isn't supported by my card
-            .filter(|ext| *ext != CString::new("VK_EXT_debug_marker"))
-            .collect();
-        Ok(result?)
+    pub fn get_vulkan_physical_device(
+        &self,
+        vk_instance: &ash::Instance,
+    ) -> Result<PhysicalDevice> {
+        Ok(PhysicalDevice::from_raw(
+            self.instance
+                .vulkan_graphics_device(self.system_id, vk_instance.handle().as_raw() as _)?
+                as u64,
+        ))
     }
 
-    // using raw stuff
-    pub fn get_physical_device(&self, vk_instance: u64) -> Result<u64> {
-        Ok(self
-            .instance
-            .vulkan_graphics_device(self.system_id, vk_instance as _)? as _)
+    pub unsafe fn get_vulkan_device(
+        &self,
+        vk_entry: &ash::Entry,
+        vk_instance: &ash::Instance,
+        vk_physical_device: PhysicalDevice,
+        info: &DeviceCreateInfoBuilder,
+    ) -> Result<ash::Device> {
+        Ok(ash::Device::load(
+            vk_instance.fp_v1_0(),
+            ash::vk::Device::from_raw(
+                self.instance
+                    .create_vulkan_device(
+                        self.system_id,
+                        std::mem::transmute(vk_entry.static_fn().get_instance_proc_addr),
+                        vk_physical_device.as_raw() as _,
+                        info as *const _ as *const _,
+                    )?
+                    .map_err(vk::Result::from_raw)? as u64,
+            ),
+        ))
     }
 
     pub fn get_resolution(&self) -> Result<Extent2D> {
@@ -271,7 +290,12 @@ impl Base {
 
         candidates
             .iter()
-            .find(|&wanted| supported_formats.iter().find(|&supported| *supported == wanted.as_raw() as u32).is_some())
+            .find(|&wanted| {
+                supported_formats
+                    .iter()
+                    .find(|&supported| *supported == wanted.as_raw() as u32)
+                    .is_some()
+            })
             .ok_or(Error::msg("Couldn't find supported format"))
             .cloned()
     }
@@ -313,6 +337,4 @@ impl Base {
             )
         }?)
     }
-
-
 }
