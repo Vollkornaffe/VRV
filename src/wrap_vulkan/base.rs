@@ -34,7 +34,7 @@ pub struct Base {
     pub debug: ManuallyDrop<Debug>,
 
     pub queue_family_index: u32,
-    pub surface_related: ManuallyDrop<SurfaceRelated>,
+    pub window_surface_related: ManuallyDrop<SurfaceRelated>,
 
     pub pool: CommandPool,
     pub queue: Queue,
@@ -43,7 +43,7 @@ pub struct Base {
 impl Drop for Base {
     fn drop(&mut self) {
         unsafe {
-            ManuallyDrop::drop(&mut self.surface_related);
+            ManuallyDrop::drop(&mut self.window_surface_related);
             ManuallyDrop::drop(&mut self.device);
             ManuallyDrop::drop(&mut self.physical_device);
             #[cfg(feature = "validation_vulkan")]
@@ -55,7 +55,7 @@ impl Drop for Base {
 }
 
 impl Base {
-    pub fn new(window: &Window, wrap_openxr: &wrap_openxr::State) -> Result<Base> {
+    pub fn new(window: &Window, wrap_openxr: &wrap_openxr::Base) -> Result<Base> {
         #[cfg(feature = "validation_vulkan")]
         const VALIDATION_LAYER_NAME: &'static str = "VK_LAYER_KHRONOS_validation";
         #[cfg(feature = "validation_vulkan")]
@@ -264,7 +264,7 @@ impl Base {
             debug: ManuallyDrop::new(debug),
 
             queue_family_index,
-            surface_related: ManuallyDrop::new(surface_related),
+            window_surface_related: ManuallyDrop::new(surface_related),
 
             pool,
             queue,
@@ -364,7 +364,7 @@ impl Base {
     }
 
     pub fn get_allowed_extend(&self, wanted: Extent2D) -> Result<Extent2D> {
-        let Detail { capabilities, .. } = self.surface_related.get_detail(&self)?;
+        let Detail { capabilities, .. } = self.window_surface_related.get_detail(&self)?;
         Ok(if capabilities.current_extent.height == std::u32::MAX {
             Extent2D {
                 width: std::cmp::max(
@@ -383,11 +383,11 @@ impl Base {
     }
 
     pub fn get_surface_format(&self) -> Result<Format> {
-        Ok(self.surface_related.get_detail(&self)?.format.format)
+        Ok(self.window_surface_related.get_detail(&self)?.format.format)
     }
 
     pub fn get_image_count(&self) -> Result<u32> {
-        Ok(self.surface_related.get_detail(&self)?.image_count)
+        Ok(self.window_surface_related.get_detail(&self)?.image_count)
     }
 
     pub fn wait_idle(&self) -> Result<()> {

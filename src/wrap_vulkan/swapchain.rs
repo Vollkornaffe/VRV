@@ -35,7 +35,7 @@ impl SwapchainRelated {
             present_modes,
             image_count,
             format,
-        } = base.surface_related.get_detail(base)?;
+        } = base.window_surface_related.get_detail(base)?;
 
         // we don't want the window to block our rendering
         let present_mode = *present_modes
@@ -46,7 +46,7 @@ impl SwapchainRelated {
         let handle = unsafe {
             loader.create_swapchain(
                 &SwapchainCreateInfoKHR::builder()
-                    .surface(base.surface_related.surface)
+                    .surface(base.window_surface_related.surface)
                     .min_image_count(image_count)
                     .image_color_space(format.color_space)
                     .image_format(format.format)

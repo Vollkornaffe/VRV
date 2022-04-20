@@ -17,14 +17,14 @@ use crate::{
     wrap_vulkan::{
         self, create_render_pass_window,
         geometry::MeshBuffers,
-        sync::{create_fence, create_semaphore, wait_and_reset},
+        sync::{create_fence, create_semaphore, wait_and_reset}, swapchain,
     },
 };
 
 use size_dependent::SizeDependentState;
 pub struct State {
-    pub openxr: ManuallyDrop<wrap_openxr::State>,
-    pub vulkan: ManuallyDrop<wrap_vulkan::base::Base>,
+    pub openxr: ManuallyDrop<wrap_openxr::Base>,
+    pub vulkan: ManuallyDrop<wrap_vulkan::Base>,
 
     // the acquiring semaphores are used round-robin
     // because we need to supply a semaphore prior to knowing which frame to use
@@ -225,8 +225,23 @@ impl State {
     pub fn new(window: &Window) -> Result<Self> {
         log::info!("Creating new VRV state");
 
-        let openxr = wrap_openxr::State::new()?;
+        let openxr = wrap_openxr::Base::new()?;
         let vulkan = wrap_vulkan::Base::new(window, &openxr)?;
+
+        // Setup HMD
+
+        let (session, mut frame_wait, mut frame_stream) = openxr.init_with_vulkan(&vulkan)?;
+
+        //let hmd_extent = openxr.get_resolution()?;
+        // TODO
+        //let swapchain = wrap_openxr::get_swapchain(
+        //&session,
+        //hmd_extent,
+        //format: Format,
+        //)?;
+
+
+        // Setup Window
 
         let window_render_pass = create_render_pass_window(&vulkan)?;
 

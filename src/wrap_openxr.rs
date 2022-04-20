@@ -1,10 +1,14 @@
 use std::ffi::CString;
 
-use anyhow::{bail, Result};
-use ash::vk::Extent2D;
+use anyhow::{bail, Result, Error};
+use ash::vk::{Extent2D, Format, Handle};
 use openxr::{
-    raw::VulkanEnableKHR, sys, vulkan::Requirements, ApplicationInfo, Entry, EnvironmentBlendMode,
-    ExtensionSet, FormFactor, Instance, SystemId, ViewConfigurationType, Vulkan,
+    raw::VulkanEnableKHR,
+    sys,
+    vulkan::{self, Requirements, SessionCreateInfo},
+    ApplicationInfo, Entry, EnvironmentBlendMode, ExtensionSet, FormFactor, FrameStream,
+    FrameWaiter, Instance, Session, Swapchain, SwapchainCreateFlags, SwapchainCreateInfo,
+    SwapchainUsageFlags, SystemId, ViewConfigurationType, Vulkan,
 };
 
 fn check(instance: &Instance, xr_result: sys::Result) -> Result<()> {
@@ -113,7 +117,9 @@ mod debug {
 #[cfg(feature = "validation_openxr")]
 use debug::Debug;
 
-pub struct State {
+use crate::wrap_vulkan;
+
+pub struct Base {
     #[cfg(feature = "validation_openxr")]
     pub debug: Debug,
 
@@ -123,11 +129,11 @@ pub struct State {
     pub vk_fns: VulkanEnableKHR,
 }
 
-impl State {
-    pub fn new() -> Result<State> {
+impl Base {
+    pub fn new() -> Result<Self> {
         const VALIDATION_LAYER_NAME: &'static str = "XR_APILAYER_LUNARG_core_validation";
 
-        log::info!("Creating new OpenXR State");
+        log::info!("Creating new OpenXR Base");
 
         let entry = Entry::linked();
         let available_extensions = entry.enumerate_extensions()?;
@@ -190,7 +196,7 @@ impl State {
 
         let vk_fns = unsafe { VulkanEnableKHR::load(&entry, instance.as_raw()) }?;
 
-        Ok(State {
+        Ok(Self {
             #[cfg(feature = "validation_openxr")]
             debug,
 
@@ -237,7 +243,10 @@ impl State {
     }
 
     pub fn get_resolution(&self) -> Result<Extent2D> {
-        let views = self.instance.enumerate_view_configuration_views(self.system_id, ViewConfigurationType::PRIMARY_STEREO)?;
+        let views = self.instance.enumerate_view_configuration_views(
+            self.system_id,
+            ViewConfigurationType::PRIMARY_STEREO,
+        )?;
 
         if views.len() != 2 {
             bail!("Views are not 2");
@@ -253,4 +262,57 @@ impl State {
             height: views[0].recommended_image_rect_height,
         })
     }
+
+    pub fn find_supported_format(
+        session: &Session<Vulkan>,
+        candidates: &[Format],
+    ) -> Result<Format> {
+        let supported_formats = session.enumerate_swapchain_formats()?;
+
+        candidates
+            .iter()
+            .find(|&wanted| supported_formats.iter().find(|&supported| *supported == wanted.as_raw() as u32).is_some())
+            .ok_or(Error::msg("Couldn't find supported format"))
+            .cloned()
+    }
+
+    pub fn get_swapchain(
+        session: &Session<Vulkan>,
+        resolution: Extent2D,
+        format: Format,
+    ) -> Result<Swapchain<Vulkan>> {
+        Ok(session.create_swapchain(&SwapchainCreateInfo {
+            create_flags: SwapchainCreateFlags::EMPTY,
+            usage_flags: SwapchainUsageFlags::COLOR_ATTACHMENT | SwapchainUsageFlags::SAMPLED,
+            format: format.as_raw() as _,
+            sample_count: 1,
+            width: resolution.width,
+            height: resolution.height,
+            face_count: 1,
+            array_size: 2, // two eyes
+            mip_count: 1,
+        })?)
+    }
+
+    pub fn init_with_vulkan(
+        &self,
+        vk_base: &wrap_vulkan::Base,
+    ) -> Result<(Session<Vulkan>, FrameWaiter, FrameStream<Vulkan>)> {
+        // A session represents this application's desire to display things! This is where we hook
+        // up our graphics API. This does not start the session; for that, you'll need a call to Session::begin
+        Ok(unsafe {
+            self.instance.create_session::<Vulkan>(
+                self.system_id,
+                &SessionCreateInfo {
+                    instance: vk_base.instance.handle().as_raw() as _,
+                    physical_device: vk_base.physical_device.as_raw() as _,
+                    device: vk_base.device.handle().as_raw() as _,
+                    queue_family_index: vk_base.queue_family_index,
+                    queue_index: 0,
+                },
+            )
+        }?)
+    }
+
+
 }
