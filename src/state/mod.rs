@@ -12,7 +12,7 @@ use ash::vk::{
 
 use openxr::{
     EventDataBuffer, FrameStream, FrameWaiter, Posef, ReferenceSpaceType, Session, Space,
-    Swapchain, Vulkan,
+    Swapchain, Vulkan, FrameState, Duration,
 };
 use winit::window::Window;
 
@@ -32,8 +32,10 @@ pub struct State {
     pub vulkan: ManuallyDrop<wrap_vulkan::Base>,
 
     pub session: Session<Vulkan>,
-    pub frame_wait: FrameWaiter,
-    pub frame_stream: FrameStream<Vulkan>,
+
+    frame_wait: FrameWaiter,
+    frame_stream: FrameStream<Vulkan>,
+
     stage: Space,
 
     hmd_swapchain: Swapchain<Vulkan>,
@@ -81,7 +83,10 @@ impl Drop for State {
 }
 
 pub struct PreRenderInfo {
-    pub image_index: u32,
+    pub window_image_index: u32,
+    pub hmd_image_index: u32,
+    pub hmd_frame_state: FrameState,
+
     image_acquired_semaphore: Semaphore,
 }
 
@@ -94,7 +99,7 @@ impl State {
         self.last_used_acquire_semaphore %= self.window_semaphores_image_acquired.len();
 
         // acuire image
-        let (image_index, _suboptimal) = unsafe {
+        let (window_image_index, _suboptimal) = unsafe {
             self.size_dependent.swapchain.loader.acquire_next_image(
                 self.size_dependent.swapchain.handle,
                 std::u64::MAX, // don't timeout
@@ -103,14 +108,22 @@ impl State {
             )
         }?;
 
+
+        let hmd_frame_state = self.frame_wait.wait()?;
+        self.frame_stream.begin().unwrap();
+
+        let hmd_image_index = self.hmd_swapchain.acquire_image().unwrap();
+
         Ok(PreRenderInfo {
-            image_index,
+            window_image_index,
+            hmd_image_index,
+            hmd_frame_state,
             image_acquired_semaphore,
         })
     }
 
     pub fn render(
-        &self,
+        &mut self,
         pre_render_info: PreRenderInfo,
         pipeline_layout: PipelineLayout,
         pipeline: Pipeline,
@@ -118,18 +131,24 @@ impl State {
         descriptor_set: DescriptorSet,
     ) -> Result<()> {
         let PreRenderInfo {
-            image_index,
+            window_image_index,
+            hmd_image_index,
+            hmd_frame_state,
             image_acquired_semaphore,
         } = pre_render_info;
 
         // get the other stuff now that we know the index
         let rendering_finished_semaphore =
-            self.window_semaphores_rendering_finished[image_index as usize];
-        let rendering_finished_fence = self.window_fences_rendering_finished[image_index as usize];
-        let command_buffer = self.window_command_buffers[image_index as usize];
+            self.window_semaphores_rendering_finished[window_image_index as usize];
+        let rendering_finished_fence = self.window_fences_rendering_finished[window_image_index as usize];
+        let command_buffer = self.window_command_buffers[window_image_index as usize];
 
         // waite before resetting cmd buffer
         wait_and_reset(&self.vulkan, rendering_finished_fence)?;
+
+        // Wait until the image is available to render to. The compositor could still be
+        // reading from it.
+        self.hmd_swapchain.wait_image(Duration::INFINITE)?;
 
         // for convenience
         let window_extent = self.size_dependent.swapchain.extent;
@@ -143,7 +162,7 @@ impl State {
                 &RenderPassBeginInfo::builder()
                     .render_pass(self.window_render_pass)
                     .framebuffer(
-                        self.size_dependent.swapchain.elements[image_index as usize].frame_buffer,
+                        self.size_dependent.swapchain.elements[window_image_index as usize].frame_buffer,
                     )
                     .render_area(*Rect2D::builder().extent(window_extent))
                     .clear_values(&[
@@ -205,7 +224,7 @@ impl State {
                     .wait_dst_stage_mask(&[PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
                     .signal_semaphores(&[rendering_finished_semaphore])
                     .build()],
-                self.window_fences_rendering_finished[image_index as usize],
+                self.window_fences_rendering_finished[window_image_index as usize],
             )?;
 
             let _suboptimal = self.size_dependent.swapchain.loader.queue_present(
@@ -213,9 +232,11 @@ impl State {
                 &PresentInfoKHR::builder()
                     .wait_semaphores(&[rendering_finished_semaphore])
                     .swapchains(&[self.size_dependent.swapchain.handle])
-                    .image_indices(&[image_index]),
+                    .image_indices(&[window_image_index]),
             )?;
         }
+
+        self.hmd_swapchain.release_image()?;
 
         Ok(())
     }

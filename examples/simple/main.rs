@@ -177,7 +177,7 @@ fn main() {
 
             let pre_render_info = state.pre_render().unwrap();
 
-            let current_frame = &per_frame_buffers[pre_render_info.image_index as usize];
+            let current_frame = &per_frame_buffers[pre_render_info.window_image_index as usize];
 
             let dt = check.elapsed().as_secs_f32();
             check = Instant::now();
