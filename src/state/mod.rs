@@ -5,7 +5,7 @@ use std::mem::ManuallyDrop;
 use anyhow::{Error, Result};
 use ash::vk::{
     ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBuffer, CommandBufferBeginInfo,
-    CommandBufferResetFlags, DescriptorSet, Extent2D, Fence, IndexType, Offset2D, Pipeline,
+    CommandBufferResetFlags, DescriptorSet, Extent2D, Fence, Format, IndexType, Offset2D, Pipeline,
     PipelineBindPoint, PipelineLayout, PipelineStageFlags, PresentInfoKHR, Rect2D, RenderPass,
     RenderPassBeginInfo, Semaphore, SubmitInfo, SubpassContents, Viewport,
 };
@@ -229,17 +229,17 @@ impl State {
         let openxr = wrap_openxr::Base::new()?;
         let vulkan = wrap_vulkan::Base::new(window, &openxr)?;
 
-        // Setup HMD
+        // Setup HMD, from this point SteamVR needs to be available
 
         let (session, mut frame_wait, mut frame_stream) = openxr.init_with_vulkan(&vulkan)?;
 
-        //let hmd_extent = openxr.get_resolution()?;
-        // TODO
-        //let swapchain = wrap_openxr::get_swapchain(
-        //&session,
-        //hmd_extent,
-        //format: Format,
-        //)?;
+        let hmd_extent = openxr.get_resolution()?;
+
+        let swapchain = wrap_openxr::Base::get_swapchain(
+            &session,
+            hmd_extent,
+            Format::B8G8R8A8_SRGB, // TODO put this somewhere or better: find dynamically
+        )?;
 
         // Setup Window
 

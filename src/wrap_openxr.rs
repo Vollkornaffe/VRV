@@ -300,24 +300,6 @@ impl Base {
             .cloned()
     }
 
-    pub fn get_swapchain(
-        session: &Session<Vulkan>,
-        resolution: Extent2D,
-        format: Format,
-    ) -> Result<Swapchain<Vulkan>> {
-        Ok(session.create_swapchain(&SwapchainCreateInfo {
-            create_flags: SwapchainCreateFlags::EMPTY,
-            usage_flags: SwapchainUsageFlags::COLOR_ATTACHMENT | SwapchainUsageFlags::SAMPLED,
-            format: format.as_raw() as _,
-            sample_count: 1,
-            width: resolution.width,
-            height: resolution.height,
-            face_count: 1,
-            array_size: 2, // two eyes
-            mip_count: 1,
-        })?)
-    }
-
     pub fn init_with_vulkan(
         &self,
         vk_base: &wrap_vulkan::Base,
@@ -336,5 +318,23 @@ impl Base {
                 },
             )
         }?)
+    }
+
+    pub fn get_swapchain(
+        session: &Session<Vulkan>,
+        extent: Extent2D,
+        format: Format,
+    ) -> Result<Swapchain<Vulkan>> {
+        Ok(session.create_swapchain(&SwapchainCreateInfo {
+            create_flags: SwapchainCreateFlags::EMPTY,
+            usage_flags: SwapchainUsageFlags::COLOR_ATTACHMENT | SwapchainUsageFlags::SAMPLED,
+            format: format.as_raw() as _,
+            sample_count: 1,
+            width: extent.width,
+            height: extent.height,
+            face_count: 1,
+            array_size: 2, // Multiview for two eyes
+            mip_count: 1,
+        })?)
     }
 }
