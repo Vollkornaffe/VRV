@@ -21,6 +21,7 @@ itertools = "0.10.3"
 crevice = {version = "0.8.0", features = ["cgmath"] }
 simplelog = "0.11.2"
 cgmath = "0.18.0"
+ctrlc = "3.1.7"
 
 [features]
 validation_openxr = []

@@ -10,6 +10,10 @@ use ash::vk::{
     RenderPassBeginInfo, Semaphore, SubmitInfo, SubpassContents, Viewport,
 };
 
+use openxr::{
+    EventDataBuffer, FrameStream, FrameWaiter, Posef, ReferenceSpaceType, Session, Space,
+    Swapchain, Vulkan,
+};
 use winit::window::Window;
 
 use crate::{
@@ -26,6 +30,15 @@ use size_dependent::SizeDependentState;
 pub struct State {
     pub openxr: ManuallyDrop<wrap_openxr::Base>,
     pub vulkan: ManuallyDrop<wrap_vulkan::Base>,
+
+    pub session: Session<Vulkan>,
+    pub frame_wait: FrameWaiter,
+    pub frame_stream: FrameStream<Vulkan>,
+    stage: Space,
+
+    hmd_swapchain: Swapchain<Vulkan>,
+
+    // TODO: actions
 
     // the acquiring semaphores are used round-robin
     // because we need to supply a semaphore prior to knowing which frame to use
@@ -231,11 +244,12 @@ impl State {
 
         // Setup HMD, from this point SteamVR needs to be available
 
-        let (session, mut frame_wait, mut frame_stream) = openxr.init_with_vulkan(&vulkan)?;
+        let (session, frame_wait, frame_stream) = openxr.init_with_vulkan(&vulkan)?;
+        let stage = session.create_reference_space(ReferenceSpaceType::STAGE, Posef::IDENTITY)?;
 
         let hmd_extent = openxr.get_resolution()?;
 
-        let swapchain = wrap_openxr::Base::get_swapchain(
+        let hmd_swapchain = wrap_openxr::Base::get_swapchain(
             &session,
             hmd_extent,
             Format::B8G8R8A8_SRGB, // TODO put this somewhere or better: find dynamically
@@ -293,6 +307,14 @@ impl State {
         Ok(Self {
             openxr: ManuallyDrop::new(openxr),
             vulkan: ManuallyDrop::new(vulkan),
+
+            session,
+            frame_wait,
+            frame_stream,
+            stage,
+
+            hmd_swapchain,
+
             last_used_acquire_semaphore: 0,
             window_semaphores_image_acquired,
             window_semaphores_rendering_finished,

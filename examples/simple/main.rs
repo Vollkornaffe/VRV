@@ -1,8 +1,15 @@
-use std::{collections::HashSet, time::Instant};
+use std::{
+    collections::HashSet,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Instant,
+};
 
 use ash::vk::Extent2D;
 use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector3};
-use openxr::Instance;
+use openxr::{EventDataBuffer, Instance, SessionState, ViewConfigurationType};
 use per_frame::PerFrame;
 use simplelog::{Config, SimpleLogger};
 use vk_shader_macros::include_glsl;
@@ -39,7 +46,7 @@ impl SphereCoords {
 }
 
 fn main() {
-    let _ = SimpleLogger::init(log::LevelFilter::Warn, Config::default());
+    let _ = SimpleLogger::init(log::LevelFilter::Info, Config::default());
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
@@ -89,10 +96,85 @@ fn main() {
     let mut check = Instant::now();
     let mut pressed_keys = HashSet::new();
 
+    // Handle interrupts gracefully
+    let ctrlc = Arc::new(AtomicBool::new(false));
+    {
+        let r = ctrlc.clone();
+        ctrlc::set_handler(move || {
+            r.store(true, Ordering::Relaxed);
+        })
+        .expect("setting Ctrl-C handler");
+    }
+
+    let mut xr_event_storage = EventDataBuffer::new();
+    let mut xr_session_running = false;
+    let mut xr_focused = false;
+
     // not sure if this is the way I want it...
     // it is an honest approach in the sense that the window is "on top"
     event_loop.run(move |event, _, control_flow| match event {
         Event::MainEventsCleared => {
+            if ctrlc.load(Ordering::Relaxed) {
+                log::warn!("Exiting through Ctrl-C");
+
+                *control_flow = ControlFlow::Exit;
+
+                match state.session.request_exit() {
+                    Ok(()) => {}
+                    Err(openxr::sys::Result::ERROR_SESSION_NOT_RUNNING) => {}
+                    Err(e) => panic!("{}", e),
+                }
+
+                return;
+            }
+
+            // handle OpenXR events
+            while let Some(event) = state
+                .openxr
+                .instance
+                .poll_event(&mut xr_event_storage)
+                .unwrap()
+            {
+                use openxr::Event::*;
+                match event {
+                    SessionStateChanged(e) => {
+                        // Session state change is where we can begin and end sessions, as well as
+                        // find quit messages!
+                        log::info!("entered state {:?}", e.state());
+                        xr_focused = false;
+                        match e.state() {
+                            SessionState::READY => {
+                                state
+                                    .session
+                                    .begin(ViewConfigurationType::PRIMARY_STEREO)
+                                    .unwrap();
+                                xr_session_running = true;
+                            }
+                            SessionState::STOPPING => {
+                                state.session.end().unwrap();
+                                xr_session_running = false;
+                            }
+                            SessionState::FOCUSED => {
+                                xr_focused = true;
+                            }
+                            SessionState::EXITING | SessionState::LOSS_PENDING => {
+                                *control_flow = ControlFlow::Exit;
+                                return;
+                            }
+                            _ => {}
+                        }
+                    }
+                    InstanceLossPending(_) => {
+                        *control_flow = ControlFlow::Exit;
+                        return;
+                    }
+                    EventsLost(e) => {
+                        log::error!("lost {} events", e.lost_event_count());
+                    }
+                    _ => {}
+                }
+            }
+
             let pre_render_info = state.pre_render().unwrap();
 
             let current_frame = &per_frame_buffers[pre_render_info.image_index as usize];
