@@ -324,6 +324,18 @@ impl Base {
             .ok_or(Error::msg("Couldn't find supported format"))
     }
 
+    pub fn find_supported_color_format(&self) -> Result<Format> {
+        self.find_supported_format(
+            &[
+                // not sure if this is a good idea tbh
+                Format::B8G8R8A8_SRGB,
+                Format::R8G8B8A8_SRGB,
+            ],
+            ImageTiling::OPTIMAL,
+            FormatFeatureFlags::COLOR_ATTACHMENT,
+        )
+    }
+
     pub fn find_supported_depth_stencil_format(&self) -> Result<Format> {
         self.find_supported_format(
             &[

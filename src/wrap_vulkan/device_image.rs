@@ -21,6 +21,7 @@ pub struct DeviceImageSettings {
     pub usage: ImageUsageFlags,
     pub properties: MemoryPropertyFlags,
     pub aspect_flags: ImageAspectFlags,
+    pub layer_count: u32, // 2 for hmd
     pub name: String,
 }
 
@@ -30,6 +31,7 @@ impl DeviceImage {
         image: Image,
         format: Format,
         aspect_flags: ImageAspectFlags,
+        layer_count: u32,
         name: String,
     ) -> Result<ImageView> {
         let view = unsafe {
@@ -44,7 +46,7 @@ impl DeviceImage {
                             .base_mip_level(0)
                             .level_count(1)
                             .base_array_layer(0)
-                            .layer_count(1)
+                            .layer_count(layer_count)
                             .build(),
                     ),
                 None,
@@ -65,7 +67,7 @@ impl DeviceImage {
                         depth: 1,
                     })
                     .mip_levels(1)
-                    .array_layers(1)
+                    .array_layers(settings.layer_count)
                     .format(settings.format)
                     .tiling(settings.tiling)
                     .initial_layout(ImageLayout::UNDEFINED)
@@ -98,6 +100,7 @@ impl DeviceImage {
             image,
             settings.format,
             settings.aspect_flags,
+            settings.layer_count,
             format!("{}View", settings.name.clone()),
         )?;
 

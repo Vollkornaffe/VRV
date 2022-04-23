@@ -11,25 +11,31 @@ use vrv::wrap_vulkan::{
 };
 
 #[derive(AsStd140)]
-pub struct UniformMatrices {
+pub struct UniformMatricesWindow {
     pub model: Matrix4<f32>,
     pub view: Matrix4<f32>,
     pub proj: Matrix4<f32>,
 }
 
-pub struct PerFrame {
-    pub matrix_buffer: MappedDeviceBuffer<UniformMatrices>,
+pub struct UniformMatricesHMD {
+    pub model: Matrix4<f32>,
+    //pub view: Matrix4<f32>, this needs to be two or what
+    pub proj: Matrix4<f32>,
+}
+
+pub struct PerFrameWindow {
+    pub matrix_buffer: MappedDeviceBuffer<UniformMatricesWindow>,
     pub mesh_buffers: MeshBuffers,
     pub descriptor_set: DescriptorSet,
 }
 
-impl PerFrame {
+impl PerFrameWindow {
     pub fn new_vec(base: &Base) -> Result<(Vec<Self>, DescriptorRelated)> {
         let debug_mesh = Mesh::load_gltf("examples/simple/untitled.glb")?;
 
         let image_count = base.get_image_count()?;
 
-        let matrix_buffers: Vec<MappedDeviceBuffer<UniformMatrices>> = (0..image_count)
+        let matrix_buffers: Vec<MappedDeviceBuffer<UniformMatricesWindow>> = (0..image_count)
             .into_iter()
             .map(|index| {
                 let matrix_buffer = MappedDeviceBuffer::new(
@@ -38,7 +44,7 @@ impl PerFrame {
                     1,
                     format!("WindowMatrices_{}", index),
                 )?;
-                matrix_buffer.write(&[UniformMatrices {
+                matrix_buffer.write(&[UniformMatricesWindow {
                     model: Matrix4::identity(),
                     view: Matrix4::identity(),
                     proj: Matrix4::identity(),

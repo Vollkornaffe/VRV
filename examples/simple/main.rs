@@ -10,7 +10,7 @@ use std::{
 use ash::vk::Extent2D;
 use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector3};
 use openxr::{EventDataBuffer, Instance, SessionState, ViewConfigurationType};
-use per_frame::PerFrame;
+use per_frame::PerFrameWindow;
 use simplelog::{Config, SimpleLogger};
 use vk_shader_macros::include_glsl;
 use vrv::{
@@ -23,7 +23,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::per_frame::UniformMatrices;
+use crate::per_frame::{UniformMatricesHMD,UniformMatricesWindow};
 
 mod per_frame;
 
@@ -53,7 +53,7 @@ fn main() {
 
     let mut state = State::new(&window).unwrap();
 
-    let (per_frame_buffers, descriptor_related) = PerFrame::new_vec(&state.vulkan).unwrap();
+    let (window_per_frame_buffers, window_descriptor_related) = PerFrameWindow::new_vec(&state.vulkan).unwrap();
 
     const VERT: &[u32] = include_glsl!("shaders/example.vert");
     const FRAG: &[u32] = include_glsl!("shaders/example.frag");
@@ -63,7 +63,7 @@ fn main() {
 
     let pipeline_layout = create_pipeline_layout(
         &state.vulkan,
-        descriptor_related.layout,
+        window_descriptor_related.layout,
         "WindowPipelineLayout".to_string(),
     )
     .unwrap();
@@ -175,9 +175,9 @@ fn main() {
                 }
             }
 
-            let pre_render_info = state.pre_render().unwrap();
+            let window_pre_render_info = state.pre_render_window().unwrap();
 
-            let current_frame = &per_frame_buffers[pre_render_info.window_image_index as usize];
+            let current_frame = &window_per_frame_buffers[window_pre_render_info.image_index as usize];
 
             let dt = check.elapsed().as_secs_f32();
             check = Instant::now();
@@ -196,7 +196,7 @@ fn main() {
                 }
             }
 
-            current_frame.matrix_buffer.write(&[UniformMatrices {
+            current_frame.matrix_buffer.write(&[UniformMatricesWindow {
                 model: Matrix4::identity(),
                 view: Matrix4::look_at_rh(
                     spherical_coords.to_coords(),
@@ -212,8 +212,8 @@ fn main() {
             }]);
 
             state
-                .render(
-                    pre_render_info,
+                .render_window(
+                    window_pre_render_info,
                     pipeline_layout,
                     pipeline,
                     &current_frame.mesh_buffers,

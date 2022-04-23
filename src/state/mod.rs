@@ -1,18 +1,17 @@
-mod size_dependent;
-
+pub mod swapchain;
 use std::mem::ManuallyDrop;
 
 use anyhow::{Error, Result};
 use ash::vk::{
     ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBuffer, CommandBufferBeginInfo,
-    CommandBufferResetFlags, DescriptorSet, Extent2D, Fence, Format, IndexType, Offset2D, Pipeline,
+    CommandBufferResetFlags, DescriptorSet, Extent2D, Fence, IndexType, Offset2D, Pipeline,
     PipelineBindPoint, PipelineLayout, PipelineStageFlags, PresentInfoKHR, Rect2D, RenderPass,
     RenderPassBeginInfo, Semaphore, SubmitInfo, SubpassContents, Viewport,
 };
 
 use openxr::{
-    EventDataBuffer, FrameStream, FrameWaiter, Posef, ReferenceSpaceType, Session, Space,
-    Swapchain, Vulkan, FrameState, Duration,
+    Duration, FrameState, FrameStream, FrameWaiter, Posef, ReferenceSpaceType,
+    Session, Space, Vulkan,
 };
 use winit::window::Window;
 
@@ -21,12 +20,11 @@ use crate::{
     wrap_vulkan::{
         self, create_render_pass_window,
         geometry::MeshBuffers,
-        swapchain,
-        sync::{create_fence, create_semaphore, wait_and_reset},
+        sync::{create_fence, create_semaphore, wait_and_reset}, render_pass::create_render_pass_hmd,
     },
 };
+use swapchain::{SwapchainHMD, SwapchainWindow};
 
-use size_dependent::SizeDependentState;
 pub struct State {
     pub openxr: ManuallyDrop<wrap_openxr::Base>,
     pub vulkan: ManuallyDrop<wrap_vulkan::Base>,
@@ -38,7 +36,9 @@ pub struct State {
 
     stage: Space,
 
-    hmd_swapchain: Swapchain<Vulkan>,
+    hmd_swapchain: SwapchainHMD,
+    hmd_command_buffers: Vec<CommandBuffer>,
+    hmd_fences_rendering_finished: Vec<Fence>,
 
     // TODO: actions
 
@@ -52,7 +52,7 @@ pub struct State {
     window_command_buffers: Vec<CommandBuffer>,
 
     pub window_render_pass: RenderPass,
-    size_dependent: SizeDependentState,
+    window_swapchain: SwapchainWindow,
 }
 
 impl Drop for State {
@@ -60,7 +60,7 @@ impl Drop for State {
         self.vulkan.wait_idle().unwrap();
 
         unsafe {
-            self.size_dependent.destroy(&self.vulkan);
+            self.window_swapchain.destroy(&self.vulkan);
 
             for &s in &self.window_semaphores_image_acquired {
                 self.vulkan.device.destroy_semaphore(s, None);
@@ -82,16 +82,17 @@ impl Drop for State {
     }
 }
 
-pub struct PreRenderInfo {
-    pub window_image_index: u32,
-    pub hmd_image_index: u32,
-    pub hmd_frame_state: FrameState,
-
+pub struct PreRenderInfoWindow {
+    pub image_index: u32,
     image_acquired_semaphore: Semaphore,
+}
+pub struct PreRenderInfoHMD {
+    pub image_index: u32,
+    pub frame_state: FrameState,
 }
 
 impl State {
-    pub fn pre_render(&mut self) -> Result<PreRenderInfo> {
+    pub fn pre_render_window(&mut self) -> Result<PreRenderInfoWindow> {
         // prepare semaphore
         let image_acquired_semaphore =
             self.window_semaphores_image_acquired[self.last_used_acquire_semaphore];
@@ -99,59 +100,73 @@ impl State {
         self.last_used_acquire_semaphore %= self.window_semaphores_image_acquired.len();
 
         // acuire image
-        let (window_image_index, _suboptimal) = unsafe {
-            self.size_dependent.swapchain.loader.acquire_next_image(
-                self.size_dependent.swapchain.handle,
+        let (image_index, _suboptimal) = unsafe {
+            self.window_swapchain.loader.acquire_next_image(
+                self.window_swapchain.handle,
                 std::u64::MAX, // don't timeout
                 image_acquired_semaphore,
                 ash::vk::Fence::default(),
             )
         }?;
 
-
-        let hmd_frame_state = self.frame_wait.wait()?;
-        self.frame_stream.begin().unwrap();
-
-        let hmd_image_index = self.hmd_swapchain.acquire_image().unwrap();
-
-        Ok(PreRenderInfo {
-            window_image_index,
-            hmd_image_index,
-            hmd_frame_state,
+        Ok(PreRenderInfoWindow {
+            image_index,
             image_acquired_semaphore,
         })
     }
 
-    pub fn render(
-        &mut self,
-        pre_render_info: PreRenderInfo,
+    pub fn pre_render_hmd(&mut self) -> Result<PreRenderInfoHMD> {
+        let frame_state = self.frame_wait.wait()?;
+        self.frame_stream.begin().unwrap();
+
+        let image_index = self.hmd_swapchain.swapchain.acquire_image().unwrap();
+
+        Ok(PreRenderInfoHMD {
+            image_index,
+            frame_state,
+        })
+    }
+
+    pub fn render_hmd(&mut self, pre_render_info: PreRenderInfoHMD) -> Result<()> {
+        let PreRenderInfoHMD {
+            image_index,
+            frame_state,
+        } = pre_render_info;
+
+        // Wait until the image is available to render to. The compositor could still be
+        // reading from it.
+        self.hmd_swapchain
+            .swapchain
+            .wait_image(Duration::INFINITE)?;
+
+        self.hmd_swapchain.swapchain.release_image()?;
+        Ok(())
+    }
+
+    pub fn render_window(
+        &self,
+        pre_render_info: PreRenderInfoWindow,
         pipeline_layout: PipelineLayout,
         pipeline: Pipeline,
         mesh: &MeshBuffers,
         descriptor_set: DescriptorSet,
     ) -> Result<()> {
-        let PreRenderInfo {
-            window_image_index,
-            hmd_image_index,
-            hmd_frame_state,
+        let PreRenderInfoWindow {
+            image_index,
             image_acquired_semaphore,
         } = pre_render_info;
 
         // get the other stuff now that we know the index
         let rendering_finished_semaphore =
-            self.window_semaphores_rendering_finished[window_image_index as usize];
-        let rendering_finished_fence = self.window_fences_rendering_finished[window_image_index as usize];
-        let command_buffer = self.window_command_buffers[window_image_index as usize];
+            self.window_semaphores_rendering_finished[image_index as usize];
+        let rendering_finished_fence = self.window_fences_rendering_finished[image_index as usize];
+        let command_buffer = self.window_command_buffers[image_index as usize];
 
         // waite before resetting cmd buffer
         wait_and_reset(&self.vulkan, rendering_finished_fence)?;
 
-        // Wait until the image is available to render to. The compositor could still be
-        // reading from it.
-        self.hmd_swapchain.wait_image(Duration::INFINITE)?;
-
         // for convenience
-        let window_extent = self.size_dependent.swapchain.extent;
+        let window_extent = self.window_swapchain.extent;
         unsafe {
             let d = &self.vulkan.device;
 
@@ -161,9 +176,7 @@ impl State {
                 command_buffer,
                 &RenderPassBeginInfo::builder()
                     .render_pass(self.window_render_pass)
-                    .framebuffer(
-                        self.size_dependent.swapchain.elements[window_image_index as usize].frame_buffer,
-                    )
+                    .framebuffer(self.window_swapchain.elements[image_index as usize].frame_buffer)
                     .render_area(*Rect2D::builder().extent(window_extent))
                     .clear_values(&[
                         ClearValue {
@@ -224,19 +237,17 @@ impl State {
                     .wait_dst_stage_mask(&[PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
                     .signal_semaphores(&[rendering_finished_semaphore])
                     .build()],
-                self.window_fences_rendering_finished[window_image_index as usize],
+                self.window_fences_rendering_finished[image_index as usize],
             )?;
 
-            let _suboptimal = self.size_dependent.swapchain.loader.queue_present(
+            let _suboptimal = self.window_swapchain.loader.queue_present(
                 self.vulkan.queue,
                 &PresentInfoKHR::builder()
                     .wait_semaphores(&[rendering_finished_semaphore])
-                    .swapchains(&[self.size_dependent.swapchain.handle])
-                    .image_indices(&[window_image_index]),
+                    .swapchains(&[self.window_swapchain.handle])
+                    .image_indices(&[image_index]),
             )?;
         }
-
-        self.hmd_swapchain.release_image()?;
 
         Ok(())
     }
@@ -244,9 +255,9 @@ impl State {
     pub fn resize(&mut self, window: &Window) -> Result<()> {
         self.vulkan.wait_idle()?;
 
-        unsafe { self.size_dependent.destroy(&self.vulkan) };
+        unsafe { self.window_swapchain.destroy(&self.vulkan) };
 
-        self.size_dependent = SizeDependentState::new(
+        self.window_swapchain = SwapchainWindow::new(
             &self.vulkan,
             self.window_render_pass,
             Extent2D {
@@ -268,21 +279,35 @@ impl State {
         let (session, frame_wait, frame_stream) = openxr.init_with_vulkan(&vulkan)?;
         let stage = session.create_reference_space(ReferenceSpaceType::STAGE, Posef::IDENTITY)?;
 
-        let hmd_extent = openxr.get_resolution()?;
+        let hmd_render_pass = create_render_pass_hmd(&vulkan)?;
 
-        let hmd_swapchain = wrap_openxr::Base::get_swapchain(
+        let hmd_swapchain = SwapchainHMD::new(
+            &openxr, & vulkan,
+            hmd_render_pass,
             &session,
-            hmd_extent,
-            Format::B8G8R8A8_SRGB, // TODO put this somewhere or better: find dynamically
         )?;
+        let hmd_image_count = hmd_swapchain.elements.len() as u32;
+        let hmd_command_buffers =
+            vulkan.alloc_command_buffers(hmd_image_count, "HMDCommandBuffers".to_string())?;
+        let hmd_fences_rendering_finished = (0..hmd_image_count)
+            .into_iter()
+            .map(|index| {
+                Ok(create_fence(
+                    &vulkan,
+                    true, // start in signaled state
+                    format!("HMDFenceRenderingFinished_{}", index),
+                )?)
+            })
+            .collect::<Result<_, Error>>()?;
+
 
         // Setup Window
 
         let window_render_pass = create_render_pass_window(&vulkan)?;
 
-        let image_count = vulkan.get_image_count()?;
+        let window_image_count = vulkan.get_image_count()?;
 
-        let window_semaphores_image_acquired = (0..image_count)
+        let window_semaphores_image_acquired = (0..window_image_count)
             .into_iter()
             .map(|index| {
                 Ok(create_semaphore(
@@ -292,7 +317,7 @@ impl State {
             })
             .collect::<Result<_, Error>>()?;
 
-        let window_semaphores_rendering_finished = (0..image_count)
+        let window_semaphores_rendering_finished = (0..window_image_count)
             .into_iter()
             .map(|index| {
                 Ok(create_semaphore(
@@ -302,7 +327,7 @@ impl State {
             })
             .collect::<Result<_, Error>>()?;
 
-        let window_fences_rendering_finished = (0..image_count)
+        let window_fences_rendering_finished = (0..window_image_count)
             .into_iter()
             .map(|index| {
                 Ok(create_fence(
@@ -313,7 +338,7 @@ impl State {
             })
             .collect::<Result<_, Error>>()?;
 
-        let size_dependent = SizeDependentState::new(
+        let window_swapchain = SwapchainWindow::new(
             &vulkan,
             window_render_pass,
             Extent2D {
@@ -323,7 +348,7 @@ impl State {
         )?;
 
         let window_command_buffers =
-            vulkan.alloc_command_buffers(image_count, "WindowCommandBuffers".to_string())?;
+            vulkan.alloc_command_buffers(window_image_count, "WindowCommandBuffers".to_string())?;
 
         Ok(Self {
             openxr: ManuallyDrop::new(openxr),
@@ -335,6 +360,8 @@ impl State {
             stage,
 
             hmd_swapchain,
+            hmd_command_buffers,
+            hmd_fences_rendering_finished,
 
             last_used_acquire_semaphore: 0,
             window_semaphores_image_acquired,
@@ -342,7 +369,7 @@ impl State {
             window_fences_rendering_finished,
             window_render_pass,
             window_command_buffers,
-            size_dependent,
+            window_swapchain,
         })
     }
 }
