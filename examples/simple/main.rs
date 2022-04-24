@@ -176,9 +176,11 @@ fn main() {
                 }
             }
 
+            let hmd_pre_render_info = state.pre_render_hmd().unwrap();
             let window_pre_render_info = state.pre_render_window().unwrap();
 
-            let current_frame =
+            // TODO hmd per frame resources
+            let window_current_frame =
                 &window_per_frame_buffers[window_pre_render_info.image_index as usize];
 
             let dt = check.elapsed().as_secs_f32();
@@ -198,28 +200,32 @@ fn main() {
                 }
             }
 
-            current_frame.matrix_buffer.write(&[UniformMatricesWindow {
-                model: Matrix4::identity(),
-                view: Matrix4::look_at_rh(
-                    spherical_coords.to_coords(),
-                    Point3::origin(),
-                    Vector3::unit_z(),
-                ),
-                proj: perspective(
-                    Deg(45.0),
-                    window.inner_size().width as f32 / window.inner_size().height as f32,
-                    0.1,
-                    100.0,
-                ),
-            }]);
+            window_current_frame
+                .matrix_buffer
+                .write(&[UniformMatricesWindow {
+                    model: Matrix4::identity(),
+                    view: Matrix4::look_at_rh(
+                        spherical_coords.to_coords(),
+                        Point3::origin(),
+                        Vector3::unit_z(),
+                    ),
+                    proj: perspective(
+                        Deg(45.0),
+                        window.inner_size().width as f32 / window.inner_size().height as f32,
+                        0.1,
+                        100.0,
+                    ),
+                }]);
+
+            state.render_hmd(hmd_pre_render_info).unwrap();
 
             state
                 .render_window(
                     window_pre_render_info,
                     pipeline_layout,
                     pipeline,
-                    &current_frame.mesh_buffers,
-                    current_frame.descriptor_set,
+                    &window_current_frame.mesh_buffers,
+                    window_current_frame.descriptor_set,
                 )
                 .unwrap();
 
