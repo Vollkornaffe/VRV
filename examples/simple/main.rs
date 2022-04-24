@@ -46,7 +46,7 @@ impl SphereCoords {
 }
 
 fn main() {
-    let _ = SimpleLogger::init(log::LevelFilter::Info, Config::default());
+    let _ = SimpleLogger::init(log::LevelFilter::Warn, Config::default());
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
