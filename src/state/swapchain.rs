@@ -54,7 +54,7 @@ impl SwapchainWindow {
                 properties: MemoryPropertyFlags::DEVICE_LOCAL,
                 aspect_flags: ImageAspectFlags::DEPTH,
                 layer_count: 1,
-                name: "DepthWindow".to_string(),
+                name: "WindowDepth".to_string(),
             },
         )?;
 
@@ -177,7 +177,7 @@ impl SwapchainHMD {
                 properties: MemoryPropertyFlags::DEVICE_LOCAL,
                 aspect_flags: ImageAspectFlags::DEPTH,
                 layer_count: 2,
-                name: "DepthWindow".to_string(),
+                name: "HMDDepth".to_string(),
             },
         )?;
 

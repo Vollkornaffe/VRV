@@ -38,7 +38,11 @@ impl DeviceImage {
             base.device.create_image_view(
                 &ImageViewCreateInfo::builder()
                     .image(image)
-                    .view_type(ImageViewType::TYPE_2D)
+                    .view_type(if layer_count == 1 {
+                        ImageViewType::TYPE_2D
+                    } else {
+                        ImageViewType::TYPE_2D_ARRAY
+                    })
                     .format(format)
                     .subresource_range(
                         ImageSubresourceRange::builder()
