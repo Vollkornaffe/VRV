@@ -81,6 +81,7 @@ fn main() {
         "HMDPipelineLayout".to_string(),
     )
     .unwrap();
+
     let hmd_pipeline = create_pipeline(
         &state.vulkan,
         state.hmd_render_pass,
@@ -185,7 +186,7 @@ fn main() {
                     SessionStateChanged(e) => {
                         // Session state change is where we can begin and end sessions, as well as
                         // find quit messages!
-                        log::info!("entered state {:?}", e.state());
+                        log::warn!("entered state {:?}", e.state());
                         xr_focused = false;
                         match e.state() {
                             SessionState::READY => {

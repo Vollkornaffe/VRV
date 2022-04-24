@@ -13,7 +13,8 @@ use ash::{
         CommandBufferAllocateInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags,
         CommandPoolCreateInfo, DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format,
         FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, MemoryPropertyFlags,
-        PhysicalDevice, Queue, QueueFlags,
+        PhysicalDevice, PhysicalDeviceMultiviewFeatures, PhysicalDeviceVulkan11Features, Queue,
+        QueueFlags,
     },
     Device, Entry, Instance,
 };
@@ -68,7 +69,7 @@ impl Base {
 
         log::info!("Creating new Vulkan State");
 
-        let vk_target_version = make_api_version(0, 1, 1, 0); // seems good enough for now
+        let vk_target_version = make_api_version(0, 1, 1, 0); // seems good enough for multiview
 
         let reqs = wrap_openxr.get_graphics_requirements()?;
         let xr_vk_target_version = openxr::Version::new(
@@ -231,7 +232,8 @@ impl Base {
                         &c_str_layer_names
                     } else {
                         &[]
-                    }),
+                    })
+                    .push_next(&mut PhysicalDeviceMultiviewFeatures::builder().multiview(true)),
             )
         }?;
 
