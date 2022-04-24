@@ -10,8 +10,8 @@ use ash::vk::{
 };
 
 use openxr::{
-    Duration, FrameState, FrameStream, FrameWaiter, Posef, ReferenceSpaceType,
-    Session, Space, Vulkan,
+    Duration, FrameState, FrameStream, FrameWaiter, Posef, ReferenceSpaceType, Session, Space,
+    Vulkan,
 };
 use winit::window::Window;
 
@@ -20,7 +20,8 @@ use crate::{
     wrap_vulkan::{
         self, create_render_pass_window,
         geometry::MeshBuffers,
-        sync::{create_fence, create_semaphore, wait_and_reset}, render_pass::create_render_pass_hmd,
+        render_pass::create_render_pass_hmd,
+        sync::{create_fence, create_semaphore, wait_and_reset},
     },
 };
 use swapchain::{SwapchainHMD, SwapchainWindow};
@@ -281,11 +282,7 @@ impl State {
 
         let hmd_render_pass = create_render_pass_hmd(&vulkan)?;
 
-        let hmd_swapchain = SwapchainHMD::new(
-            &openxr, & vulkan,
-            hmd_render_pass,
-            &session,
-        )?;
+        let hmd_swapchain = SwapchainHMD::new(&openxr, &vulkan, hmd_render_pass, &session)?;
         let hmd_image_count = hmd_swapchain.elements.len() as u32;
         let hmd_command_buffers =
             vulkan.alloc_command_buffers(hmd_image_count, "HMDCommandBuffers".to_string())?;
@@ -299,7 +296,6 @@ impl State {
                 )?)
             })
             .collect::<Result<_, Error>>()?;
-
 
         // Setup Window
 

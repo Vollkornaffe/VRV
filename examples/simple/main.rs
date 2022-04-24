@@ -23,7 +23,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::per_frame::{UniformMatricesHMD,UniformMatricesWindow};
+use crate::per_frame::{UniformMatricesHMD, UniformMatricesWindow};
 
 mod per_frame;
 
@@ -53,7 +53,8 @@ fn main() {
 
     let mut state = State::new(&window).unwrap();
 
-    let (window_per_frame_buffers, window_descriptor_related) = PerFrameWindow::new_vec(&state.vulkan).unwrap();
+    let (window_per_frame_buffers, window_descriptor_related) =
+        PerFrameWindow::new_vec(&state.vulkan).unwrap();
 
     const VERT: &[u32] = include_glsl!("shaders/example.vert");
     const FRAG: &[u32] = include_glsl!("shaders/example.frag");
@@ -177,7 +178,8 @@ fn main() {
 
             let window_pre_render_info = state.pre_render_window().unwrap();
 
-            let current_frame = &window_per_frame_buffers[window_pre_render_info.image_index as usize];
+            let current_frame =
+                &window_per_frame_buffers[window_pre_render_info.image_index as usize];
 
             let dt = check.elapsed().as_secs_f32();
             check = Instant::now();

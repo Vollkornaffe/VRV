@@ -1,22 +1,20 @@
 use anyhow::Result;
 use ash::vk::{
     AccessFlags, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp,
-    Format, FormatFeatureFlags, ImageLayout, ImageTiling, PipelineBindPoint, PipelineStageFlags,
-    RenderPass, RenderPassCreateInfo, SampleCountFlags, SubpassDependency, SubpassDescription,
-    SUBPASS_EXTERNAL, RenderPassMultiviewCreateInfo,
+    ImageLayout, PipelineBindPoint, PipelineStageFlags, RenderPass, RenderPassCreateInfo,
+    RenderPassMultiviewCreateInfo, SampleCountFlags, SubpassDependency, SubpassDescription,
+    SUBPASS_EXTERNAL,
 };
 
 use super::Base;
 
 pub fn create_render_pass_window(base: &Base) -> Result<RenderPass> {
-    let color_format = base.get_surface_format()?;
-
     let render_pass = unsafe {
         base.device.create_render_pass(
             &RenderPassCreateInfo::builder()
                 .attachments(&[
                     AttachmentDescription::builder()
-                        .format(color_format)
+                        .format(base.get_surface_format()?)
                         .samples(SampleCountFlags::TYPE_1)
                         .load_op(AttachmentLoadOp::CLEAR)
                         .store_op(AttachmentStoreOp::STORE)
@@ -63,7 +61,6 @@ pub fn create_render_pass_window(base: &Base) -> Result<RenderPass> {
 }
 
 pub fn create_render_pass_hmd(base: &Base) -> Result<RenderPass> {
-
     // sets the 2 least significant bits
     let masks = [!(!0 << 2)];
 
@@ -79,6 +76,7 @@ pub fn create_render_pass_hmd(base: &Base) -> Result<RenderPass> {
                         .stencil_load_op(AttachmentLoadOp::DONT_CARE)
                         .stencil_store_op(AttachmentStoreOp::DONT_CARE)
                         .initial_layout(ImageLayout::UNDEFINED)
+                        // final layout isn't PRESENT_SRC_KHR
                         .final_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
                         .build(),
                     AttachmentDescription::builder()
@@ -111,7 +109,12 @@ pub fn create_render_pass_hmd(base: &Base) -> Result<RenderPass> {
                     .dst_stage_mask(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
                     .dst_access_mask(AccessFlags::COLOR_ATTACHMENT_WRITE)
                     .build()])
-                    .push_next(&mut RenderPassMultiviewCreateInfo::builder().view_masks(&masks).correlation_masks(&masks)),
+                // there is no next in the window swapchain
+                .push_next(
+                    &mut RenderPassMultiviewCreateInfo::builder()
+                        .view_masks(&masks)
+                        .correlation_masks(&masks),
+                ),
             None,
         )
     }?;
