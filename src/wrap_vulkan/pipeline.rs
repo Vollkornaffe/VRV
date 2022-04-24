@@ -102,7 +102,7 @@ pub fn create_pipeline(
                         .polygon_mode(PolygonMode::FILL)
                         .line_width(1.0)
                         .cull_mode(CullModeFlags::BACK)
-                        .front_face(FrontFace::CLOCKWISE) // TODO maybe change this back
+                        .front_face(FrontFace::COUNTER_CLOCKWISE)
                         .depth_bias_enable(false)
                         .depth_bias_constant_factor(0.0)
                         .depth_bias_clamp(0.0)

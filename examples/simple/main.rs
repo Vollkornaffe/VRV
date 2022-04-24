@@ -24,7 +24,7 @@ use winit::{
 };
 
 use crate::{
-    camera::{fov_to_projection, pose_to_matrix_inverse, SphereCoords},
+    camera::{fov_to_projection, pose_to_matrix_inverse, KeyMap, SphereCoords},
     per_frame::{PerFrameHMD, UniformMatricesHMD, UniformMatricesWindow},
 };
 
@@ -123,8 +123,7 @@ fn main() {
 
     let mut spherical_coords = SphereCoords::new();
 
-    let mut check = Instant::now();
-    let mut pressed_keys = HashSet::new();
+    let mut pressed_keys: HashSet<VirtualKeyCode> = HashSet::new();
 
     // Handle interrupts gracefully
     let ctrlc = Arc::new(AtomicBool::new(false));
@@ -238,22 +237,12 @@ fn main() {
             let window_current_frame =
                 &window_per_frame_buffers[window_pre_render_info.image_index as usize];
 
-            let dt = check.elapsed().as_secs_f32();
-            check = Instant::now();
-
-            let speed = 2.0;
-
-            for code in &pressed_keys {
-                match code {
-                    VirtualKeyCode::Q => spherical_coords.radius += dt * speed,
-                    VirtualKeyCode::E => spherical_coords.radius -= dt * speed,
-                    VirtualKeyCode::W => spherical_coords.theta += dt * speed,
-                    VirtualKeyCode::S => spherical_coords.theta -= dt * speed,
-                    VirtualKeyCode::A => spherical_coords.phi += dt * speed,
-                    VirtualKeyCode::D => spherical_coords.phi -= dt * speed,
-                    _ => {}
-                }
-            }
+            spherical_coords.update(
+                &pressed_keys
+                    .iter()
+                    .map(|&k| k.into())
+                    .collect::<Vec<KeyMap>>(),
+            );
 
             window_current_frame
                 .matrix_buffer
@@ -262,14 +251,19 @@ fn main() {
                     view: Matrix4::look_at_rh(
                         spherical_coords.to_coords(),
                         Point3::origin(),
-                        Vector3::unit_z(),
+                        Vector3::unit_y(),
                     ),
-                    proj: perspective(
-                        Deg(45.0),
-                        window.inner_size().width as f32 / window.inner_size().height as f32,
-                        0.1,
-                        100.0,
-                    ),
+                    proj: {
+                        // undo y inversion
+                        let mut tmp = perspective(
+                            Deg(45.0),
+                            window.inner_size().width as f32 / window.inner_size().height as f32,
+                            0.1,
+                            100.0,
+                        );
+                        tmp[1][1] *= -1.0;
+                        tmp
+                    },
                 }]);
 
             state
@@ -313,7 +307,7 @@ fn main() {
                     log::info!("Resizing to {:?}", new_inner_size);
                     state.resize(&window).unwrap();
                 }
-                // camera movement
+                // record key presses
                 WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
