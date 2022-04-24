@@ -32,6 +32,7 @@ pub struct State {
 
     stage: Space,
 
+    hmd_render_pass: RenderPass,
     hmd_swapchain: SwapchainHMD,
     hmd_command_buffers: Vec<CommandBuffer>,
     hmd_fences_rendering_finished: Vec<Fence>,
@@ -190,6 +191,7 @@ impl State {
             frame_stream,
             stage,
 
+            hmd_render_pass,
             hmd_swapchain,
             hmd_command_buffers,
             hmd_fences_rendering_finished,

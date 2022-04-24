@@ -1,5 +1,10 @@
 use crate::{wrap_vulkan::sync::wait_and_reset, State};
 use anyhow::Result;
+use ash::vk::{
+    ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
+    CommandBufferResetFlags, PipelineStageFlags, Rect2D, RenderPassBeginInfo, SubmitInfo,
+    SubpassContents,
+};
 use openxr::{
     CompositionLayerProjection, CompositionLayerProjectionView, Duration, EnvironmentBlendMode,
     Extent2Di, Offset2Di, Rect2Di, SwapchainSubImage, ViewConfigurationType,
@@ -47,11 +52,47 @@ impl State {
             .swapchain
             .wait_image(Duration::INFINITE)?;
 
+        let rendering_finished_fence = self.hmd_fences_rendering_finished[image_index as usize];
+        let command_buffer = self.hmd_command_buffers[image_index as usize];
+        let frame_buffer = self.hmd_swapchain.elements[image_index as usize].frame_buffer;
+        let extent = self.hmd_swapchain.extent;
+
         // wait for rendering operations
-        wait_and_reset(
-            &self.vulkan,
-            self.hmd_fences_rendering_finished[image_index as usize],
-        )?;
+        wait_and_reset(&self.vulkan, rendering_finished_fence)?;
+
+        unsafe {
+            let d = &self.vulkan.device;
+
+            d.reset_command_buffer(command_buffer, CommandBufferResetFlags::RELEASE_RESOURCES)?;
+            d.begin_command_buffer(command_buffer, &CommandBufferBeginInfo::builder())?;
+            d.cmd_begin_render_pass(
+                command_buffer,
+                &RenderPassBeginInfo::builder()
+                    .render_pass(self.hmd_render_pass)
+                    .framebuffer(frame_buffer)
+                    .render_area(*Rect2D::builder().extent(extent))
+                    .clear_values(&[
+                        ClearValue {
+                            color: ClearColorValue::default(),
+                        },
+                        ClearValue {
+                            depth_stencil: ClearDepthStencilValue {
+                                depth: 1.0,
+                                stencil: 0,
+                            },
+                        },
+                    ]),
+                SubpassContents::INLINE,
+            );
+
+            // TODO bind pipeline
+            // TODO bind descriptor set
+            // TODO bind vertex & index buffer
+            // TODO draw
+
+            d.cmd_end_render_pass(command_buffer);
+            d.end_command_buffer(command_buffer)?;
+        }
 
         // Fetch the view transforms. To minimize latency, we intentionally do this *after*
         // recording commands to render the scene, i.e. at the last possible moment before
@@ -67,7 +108,15 @@ impl State {
 
         // TODO write camera matrices
 
-        // TODO submit rendering commands
+        unsafe {
+            self.vulkan.device.queue_submit(
+                self.vulkan.queue,
+                &[SubmitInfo::builder()
+                    .command_buffers(&[command_buffer])
+                    .build()],
+                rendering_finished_fence,
+            )?;
+        }
 
         self.hmd_swapchain.swapchain.release_image()?;
 

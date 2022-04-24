@@ -54,12 +54,13 @@ impl State {
             self.window_semaphores_rendering_finished[image_index as usize];
         let rendering_finished_fence = self.window_fences_rendering_finished[image_index as usize];
         let command_buffer = self.window_command_buffers[image_index as usize];
+        let frame_buffer = self.window_swapchain.elements[image_index as usize].frame_buffer;
 
         // waite before resetting cmd buffer
         wait_and_reset(&self.vulkan, rendering_finished_fence)?;
 
         // for convenience
-        let window_extent = self.window_swapchain.extent;
+        let extent = self.window_swapchain.extent;
         unsafe {
             let d = &self.vulkan.device;
 
@@ -69,8 +70,8 @@ impl State {
                 command_buffer,
                 &RenderPassBeginInfo::builder()
                     .render_pass(self.window_render_pass)
-                    .framebuffer(self.window_swapchain.elements[image_index as usize].frame_buffer)
-                    .render_area(*Rect2D::builder().extent(window_extent))
+                    .framebuffer(frame_buffer)
+                    .render_area(*Rect2D::builder().extent(extent))
                     .clear_values(&[
                         ClearValue {
                             color: ClearColorValue::default(),
@@ -93,8 +94,8 @@ impl State {
                 &[Viewport::builder()
                     .x(0.0)
                     .y(0.0)
-                    .width(window_extent.width as f32)
-                    .height(window_extent.height as f32)
+                    .width(extent.width as f32)
+                    .height(extent.height as f32)
                     .min_depth(0.0)
                     .max_depth(1.0)
                     .build()],
@@ -104,7 +105,7 @@ impl State {
                 0,
                 &[Rect2D::builder()
                     .offset(Offset2D { x: 0, y: 0 })
-                    .extent(window_extent)
+                    .extent(extent)
                     .build()],
             );
 
@@ -130,7 +131,7 @@ impl State {
                     .wait_dst_stage_mask(&[PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
                     .signal_semaphores(&[rendering_finished_semaphore])
                     .build()],
-                self.window_fences_rendering_finished[image_index as usize],
+                rendering_finished_fence,
             )?;
 
             let _suboptimal = self.window_swapchain.loader.queue_present(
