@@ -9,7 +9,7 @@ use std::{
 
 use ash::vk::{DynamicState, Extent2D};
 use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector3};
-use openxr::{EventDataBuffer, Instance, SessionState, ViewConfigurationType};
+use openxr::{EventDataBuffer, SessionState, ViewConfigurationType};
 use per_frame::PerFrameWindow;
 use simplelog::{Config, SimpleLogger};
 use vk_shader_macros::include_glsl;
@@ -23,27 +23,13 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::per_frame::{PerFrameHMD, UniformMatricesHMD, UniformMatricesWindow};
+use crate::{
+    camera::{fov_to_projection, pose_to_matrix_inverse, SphereCoords},
+    per_frame::{PerFrameHMD, UniformMatricesHMD, UniformMatricesWindow},
+};
 
+mod camera;
 mod per_frame;
-
-#[derive(Copy, Clone, Debug, Default)]
-struct SphereCoords {
-    pub phi: f32,
-    pub theta: f32,
-    pub radius: f32,
-}
-
-impl SphereCoords {
-    pub fn to_coords(&self) -> Point3<f32> {
-        [
-            self.radius * self.phi.cos() * self.theta.sin(),
-            self.radius * self.phi.sin() * self.theta.sin(),
-            self.radius * self.theta.cos(),
-        ]
-        .into()
-    }
-}
 
 fn main() {
     let _ = SimpleLogger::init(log::LevelFilter::Warn, Config::default());
@@ -135,11 +121,7 @@ fn main() {
             .destroy_shader_module(window_module_frag, None);
     }
 
-    let mut spherical_coords = SphereCoords {
-        phi: 0.0,
-        theta: std::f32::consts::FRAC_PI_8,
-        radius: 4.0,
-    };
+    let mut spherical_coords = SphereCoords::new();
 
     let mut check = Instant::now();
     let mut pressed_keys = HashSet::new();
@@ -241,7 +223,13 @@ fn main() {
                     .get_views(hmd_pre_render_info.frame_state.predicted_display_time)
                     .unwrap();
 
-                // TODO write uniform matrices
+                hmd_current_frame.matrix_buffer.write(&[UniformMatricesHMD {
+                    model: Matrix4::identity(),
+                    view_left: pose_to_matrix_inverse(views[0].pose),
+                    view_right: pose_to_matrix_inverse(views[1].pose),
+                    proj_left: fov_to_projection(views[0].fov),
+                    proj_right: fov_to_projection(views[1].fov),
+                }]);
 
                 state.submit_hmd(hmd_pre_render_info, &views).unwrap();
             }

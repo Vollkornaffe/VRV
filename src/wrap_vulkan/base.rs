@@ -13,8 +13,7 @@ use ash::{
         CommandBufferAllocateInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags,
         CommandPoolCreateInfo, DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format,
         FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, MemoryPropertyFlags,
-        PhysicalDevice, PhysicalDeviceMultiviewFeatures, PhysicalDeviceVulkan11Features, Queue,
-        QueueFlags,
+        PhysicalDevice, PhysicalDeviceMultiviewFeatures, Queue, QueueFlags,
     },
     Device, Entry, Instance,
 };

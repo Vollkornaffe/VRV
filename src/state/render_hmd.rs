@@ -6,11 +6,12 @@ use anyhow::{Error, Result};
 use ash::vk::{
     ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
     CommandBufferResetFlags, DescriptorSet, IndexType, Pipeline, PipelineBindPoint, PipelineLayout,
-    PipelineStageFlags, Rect2D, RenderPassBeginInfo, SubmitInfo, SubpassContents,
+    Rect2D, RenderPassBeginInfo, SubmitInfo, SubpassContents,
 };
+
 use openxr::{
     CompositionLayerProjection, CompositionLayerProjectionView, Duration, EnvironmentBlendMode,
-    Extent2Di, Offset2Di, Rect2Di, SwapchainSubImage, View, ViewConfigurationType,
+    Extent2Di, Offset2Di, Rect2Di, SwapchainSubImage, View,
 };
 
 use super::PreRenderInfoHMD;
@@ -48,10 +49,7 @@ impl State {
         mesh: &MeshBuffers,
         descriptor_set: DescriptorSet,
     ) -> Result<()> {
-        let PreRenderInfoHMD {
-            image_index,
-            frame_state,
-        } = pre_render_info;
+        let PreRenderInfoHMD { image_index, .. } = pre_render_info;
 
         let image_index = image_index.ok_or(Error::msg("Shouldn't render, says OpenXR"))?;
 

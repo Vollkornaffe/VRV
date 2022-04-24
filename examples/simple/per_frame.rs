@@ -14,9 +14,9 @@ use vrv::wrap_vulkan::{
 pub struct UniformMatricesHMD {
     pub model: Matrix4<f32>,
     pub view_left: Matrix4<f32>,
-    pub view_rigth: Matrix4<f32>,
+    pub view_right: Matrix4<f32>,
     pub proj_left: Matrix4<f32>,
-    pub proj_rigth: Matrix4<f32>,
+    pub proj_right: Matrix4<f32>,
 }
 
 #[derive(AsStd140)]
@@ -122,9 +122,9 @@ impl PerFrameHMD {
                 matrix_buffer.write(&[UniformMatricesHMD {
                     model: Matrix4::identity(),
                     view_left: Matrix4::identity(),
-                    view_rigth: Matrix4::identity(),
+                    view_right: Matrix4::identity(),
                     proj_left: Matrix4::identity(),
-                    proj_rigth: Matrix4::identity(),
+                    proj_right: Matrix4::identity(),
                 }]);
 
                 Ok(matrix_buffer)
