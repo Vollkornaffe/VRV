@@ -23,7 +23,7 @@ use winit::{
     window::WindowBuilder,
 };
 
-use crate::per_frame::{UniformMatricesHMD, UniformMatricesWindow};
+use crate::per_frame::{PerFrameHMD, UniformMatricesHMD, UniformMatricesWindow};
 
 mod per_frame;
 
@@ -53,28 +53,57 @@ fn main() {
 
     let mut state = State::new(&window).unwrap();
 
+    let (hmd_per_frame_buffers, hmd_descriptor_related) =
+        PerFrameHMD::new_vec(&state.vulkan, state.get_image_count_hmd()).unwrap();
+
     let (window_per_frame_buffers, window_descriptor_related) =
-        PerFrameWindow::new_vec(&state.vulkan).unwrap();
+        PerFrameWindow::new_vec(&state.vulkan, state.get_image_count_window()).unwrap();
 
-    const VERT: &[u32] = include_glsl!("shaders/example.vert");
-    const FRAG: &[u32] = include_glsl!("shaders/example.frag");
+    const HMD_VERT: &[u32] = include_glsl!("shaders/example_hmd.vert");
+    const HMD_FRAG: &[u32] = include_glsl!("shaders/example_hmd.frag");
 
-    let module_vert = create_shader_module(&state.vulkan, VERT, "ShaderVert".to_string()).unwrap();
-    let module_frag = create_shader_module(&state.vulkan, FRAG, "ShaderFrag".to_string()).unwrap();
+    const WINDOW_VERT: &[u32] = include_glsl!("shaders/example_window.vert");
+    const WINDOW_FRAG: &[u32] = include_glsl!("shaders/example_window.frag");
 
-    let pipeline_layout = create_pipeline_layout(
+    let hmd_module_vert =
+        create_shader_module(&state.vulkan, HMD_VERT, "HMDShaderVert".to_string()).unwrap();
+    let hmd_module_frag =
+        create_shader_module(&state.vulkan, HMD_FRAG, "HMDShaderFrag".to_string()).unwrap();
+
+    let window_module_vert =
+        create_shader_module(&state.vulkan, WINDOW_VERT, "WindowShaderVert".to_string()).unwrap();
+    let window_module_frag =
+        create_shader_module(&state.vulkan, WINDOW_FRAG, "WindowShaderFrag".to_string()).unwrap();
+
+    let hmd_pipeline_layout = create_pipeline_layout(
+        &state.vulkan,
+        hmd_descriptor_related.layout,
+        "HMDPipelineLayout".to_string(),
+    )
+    .unwrap();
+    let hmd_pipeline = create_pipeline(
+        &state.vulkan,
+        state.hmd_render_pass,
+        hmd_pipeline_layout,
+        hmd_module_vert,
+        hmd_module_frag,
+        state.openxr.get_resolution().unwrap(),
+        "HMDPipeline".to_string(),
+    )
+    .unwrap();
+
+    let window_pipeline_layout = create_pipeline_layout(
         &state.vulkan,
         window_descriptor_related.layout,
         "WindowPipelineLayout".to_string(),
     )
     .unwrap();
-
-    let pipeline = create_pipeline(
+    let window_pipeline = create_pipeline(
         &state.vulkan,
         state.window_render_pass,
-        pipeline_layout,
-        module_vert,
-        module_frag,
+        window_pipeline_layout,
+        window_module_vert,
+        window_module_frag,
         Extent2D {
             width: window.inner_size().width,
             height: window.inner_size().height,
@@ -84,8 +113,23 @@ fn main() {
     .unwrap();
 
     unsafe {
-        state.vulkan.device.destroy_shader_module(module_vert, None);
-        state.vulkan.device.destroy_shader_module(module_frag, None);
+        state
+            .vulkan
+            .device
+            .destroy_shader_module(hmd_module_vert, None);
+        state
+            .vulkan
+            .device
+            .destroy_shader_module(hmd_module_frag, None);
+
+        state
+            .vulkan
+            .device
+            .destroy_shader_module(window_module_vert, None);
+        state
+            .vulkan
+            .device
+            .destroy_shader_module(window_module_frag, None);
     }
 
     let mut spherical_coords = SphereCoords {
@@ -177,9 +221,29 @@ fn main() {
             }
 
             let hmd_pre_render_info = state.pre_render_hmd().unwrap();
-            let window_pre_render_info = state.pre_render_window().unwrap();
+            if hmd_pre_render_info.image_index.is_some() {
+                let image_index = hmd_pre_render_info.image_index.unwrap();
+                let hmd_current_frame = &hmd_per_frame_buffers[image_index as usize];
 
-            // TODO hmd per frame resources
+                state
+                    .record_hmd(
+                        hmd_pre_render_info,
+                        hmd_pipeline_layout,
+                        hmd_pipeline,
+                        &hmd_current_frame.mesh_buffers,
+                        hmd_current_frame.descriptor_set,
+                    )
+                    .unwrap();
+                let views = state
+                    .get_views(hmd_pre_render_info.frame_state.predicted_display_time)
+                    .unwrap();
+
+                // TODO write uniform matrices
+
+                state.submit_hmd(hmd_pre_render_info, &views).unwrap();
+            }
+
+            let window_pre_render_info = state.pre_render_window().unwrap();
             let window_current_frame =
                 &window_per_frame_buffers[window_pre_render_info.image_index as usize];
 
@@ -217,13 +281,11 @@ fn main() {
                     ),
                 }]);
 
-            state.render_hmd(hmd_pre_render_info).unwrap();
-
             state
                 .render_window(
                     window_pre_render_info,
-                    pipeline_layout,
-                    pipeline,
+                    window_pipeline_layout,
+                    window_pipeline,
                     &window_current_frame.mesh_buffers,
                     window_current_frame.descriptor_set,
                 )

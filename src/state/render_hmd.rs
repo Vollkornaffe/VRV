@@ -1,13 +1,16 @@
-use crate::{wrap_vulkan::sync::wait_and_reset, State};
-use anyhow::Result;
+use crate::{
+    wrap_vulkan::{geometry::MeshBuffers, sync::wait_and_reset},
+    State,
+};
+use anyhow::{Error, Result};
 use ash::vk::{
     ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
-    CommandBufferResetFlags, PipelineStageFlags, Rect2D, RenderPassBeginInfo, SubmitInfo,
-    SubpassContents,
+    CommandBufferResetFlags, DescriptorSet, IndexType, Pipeline, PipelineBindPoint, PipelineLayout,
+    PipelineStageFlags, Rect2D, RenderPassBeginInfo, SubmitInfo, SubpassContents,
 };
 use openxr::{
     CompositionLayerProjection, CompositionLayerProjectionView, Duration, EnvironmentBlendMode,
-    Extent2Di, Offset2Di, Rect2Di, SwapchainSubImage, ViewConfigurationType,
+    Extent2Di, Offset2Di, Rect2Di, SwapchainSubImage, View, ViewConfigurationType,
 };
 
 use super::PreRenderInfoHMD;
@@ -16,6 +19,14 @@ impl State {
     pub fn pre_render_hmd(&mut self) -> Result<PreRenderInfoHMD> {
         let frame_state = self.frame_wait.wait()?;
         self.frame_stream.begin()?;
+
+        if !frame_state.should_render {
+            self.frame_stream.end(
+                frame_state.predicted_display_time,
+                EnvironmentBlendMode::OPAQUE,
+                &[],
+            )?;
+        }
 
         let image_index = if frame_state.should_render {
             Some(self.hmd_swapchain.swapchain.acquire_image()?)
@@ -29,22 +40,20 @@ impl State {
         })
     }
 
-    pub fn render_hmd(&mut self, pre_render_info: PreRenderInfoHMD) -> Result<()> {
+    pub fn record_hmd(
+        &mut self,
+        pre_render_info: PreRenderInfoHMD,
+        pipeline_layout: PipelineLayout,
+        pipeline: Pipeline,
+        mesh: &MeshBuffers,
+        descriptor_set: DescriptorSet,
+    ) -> Result<()> {
         let PreRenderInfoHMD {
             image_index,
             frame_state,
         } = pre_render_info;
 
-        // abort rendering
-        if image_index.is_none() {
-            self.frame_stream.end(
-                frame_state.predicted_display_time,
-                EnvironmentBlendMode::OPAQUE,
-                &[],
-            )?;
-            return Ok(());
-        }
-        let image_index = image_index.unwrap();
+        let image_index = image_index.ok_or(Error::msg("Shouldn't render, says OpenXR"))?;
 
         // Wait until the image is available to render to. The compositor could still be
         // reading from it.
@@ -84,29 +93,38 @@ impl State {
                     ]),
                 SubpassContents::INLINE,
             );
-
-            // TODO bind pipeline
-            // TODO bind descriptor set
-            // TODO bind vertex & index buffer
-            // TODO draw
+            d.cmd_bind_pipeline(command_buffer, PipelineBindPoint::GRAPHICS, pipeline);
+            d.cmd_bind_vertex_buffers(command_buffer, 0, &[mesh.vertex.handle()], &[0]);
+            d.cmd_bind_index_buffer(command_buffer, mesh.index.handle(), 0, IndexType::UINT32);
+            d.cmd_bind_descriptor_sets(
+                command_buffer,
+                PipelineBindPoint::GRAPHICS,
+                pipeline_layout,
+                0,
+                &[descriptor_set],
+                &[],
+            );
+            d.cmd_draw_indexed(command_buffer, mesh.num_indices() as u32, 1, 0, 0, 0);
 
             d.cmd_end_render_pass(command_buffer);
             d.end_command_buffer(command_buffer)?;
         }
+        Ok(())
+    }
 
-        // Fetch the view transforms. To minimize latency, we intentionally do this *after*
-        // recording commands to render the scene, i.e. at the last possible moment before
-        // rendering begins in earnest on the GPU. Uniforms dependent on this data can be sent
-        // to the GPU just-in-time by writing them to per-frame host-visible memory which the
-        // GPU will only read once the command buffer is submitted.
-        let (_, view_vec) = self.session.locate_views(
-            ViewConfigurationType::PRIMARY_STEREO,
-            frame_state.predicted_display_time,
-            &self.stage,
-        )?;
-        let views = [view_vec[0], view_vec[1]];
+    pub fn submit_hmd(
+        &mut self,
+        pre_render_info: PreRenderInfoHMD,
+        views: &[View; 2],
+    ) -> Result<()> {
+        let PreRenderInfoHMD {
+            image_index,
+            frame_state,
+        } = pre_render_info;
 
-        // TODO write camera matrices
+        let image_index = image_index.ok_or(Error::msg("Shouldn't render, says OpenXR"))?;
+        let command_buffer = self.hmd_command_buffers[image_index as usize];
+        let rendering_finished_fence = self.hmd_fences_rendering_finished[image_index as usize];
 
         unsafe {
             self.vulkan.device.queue_submit(

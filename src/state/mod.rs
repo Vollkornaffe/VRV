@@ -7,7 +7,8 @@ use anyhow::{Error, Result};
 use ash::vk::{CommandBuffer, Extent2D, Fence, RenderPass, Semaphore};
 
 use openxr::{
-    FrameState, FrameStream, FrameWaiter, Posef, ReferenceSpaceType, Session, Space, Vulkan,
+    FrameState, FrameStream, FrameWaiter, Posef, ReferenceSpaceType, Session, Space, Time, View,
+    ViewConfigurationType, Vulkan,
 };
 use winit::window::Window;
 
@@ -32,7 +33,7 @@ pub struct State {
 
     stage: Space,
 
-    hmd_render_pass: RenderPass,
+    pub hmd_render_pass: RenderPass,
     hmd_swapchain: SwapchainHMD,
     hmd_command_buffers: Vec<CommandBuffer>,
     hmd_fences_rendering_finished: Vec<Fence>,
@@ -79,12 +80,14 @@ impl Drop for State {
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct PreRenderInfoWindow {
     pub image_index: u32,
     image_acquired_semaphore: Semaphore,
 }
+#[derive(Copy, Clone)]
 pub struct PreRenderInfoHMD {
-    pub image_index: Option<u32>, // is None if the app shouldn't render
+    pub image_index: Option<u32>,
     pub frame_state: FrameState,
 }
 
@@ -204,5 +207,22 @@ impl State {
             window_command_buffers,
             window_swapchain,
         })
+    }
+
+    pub fn get_image_count_hmd(&self) -> u32 {
+        self.hmd_swapchain.elements.len() as u32
+    }
+
+    pub fn get_image_count_window(&self) -> u32 {
+        self.window_swapchain.elements.len() as u32
+    }
+
+    pub fn get_views(&self, display_time: Time) -> Result<[View; 2]> {
+        let (_, view_vec) = self.session.locate_views(
+            ViewConfigurationType::PRIMARY_STEREO,
+            display_time,
+            &self.stage,
+        )?;
+        Ok([view_vec[0], view_vec[1]])
     }
 }
