@@ -7,7 +7,7 @@ use std::{
     time::Instant,
 };
 
-use ash::vk::Extent2D;
+use ash::vk::{DynamicState, Extent2D};
 use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector3};
 use openxr::{EventDataBuffer, Instance, SessionState, ViewConfigurationType};
 use per_frame::PerFrameWindow;
@@ -89,6 +89,7 @@ fn main() {
         hmd_module_vert,
         hmd_module_frag,
         state.openxr.get_resolution().unwrap(),
+        &[], // no dynamic state for now
         "HMDPipeline".to_string(),
     )
     .unwrap();
@@ -109,6 +110,7 @@ fn main() {
             width: window.inner_size().width,
             height: window.inner_size().height,
         },
+        &[DynamicState::VIEWPORT, DynamicState::SCISSOR], // allow for resize
         "WindowPipeline".to_string(),
     )
     .unwrap();

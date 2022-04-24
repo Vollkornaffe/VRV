@@ -47,6 +47,7 @@ pub fn create_pipeline(
     module_vert: ShaderModule,
     module_frag: ShaderModule,
     initial_extent: Extent2D,
+    dynamic_states: &[DynamicState],
     name: String,
 ) -> Result<Pipeline> {
     let vertex_bindings = Vertex::get_binding_description();
@@ -147,8 +148,7 @@ pub fn create_pipeline(
                         .stencil_test_enable(false),
                 )
                 .dynamic_state(
-                    &PipelineDynamicStateCreateInfo::builder()
-                        .dynamic_states(&[DynamicState::VIEWPORT, DynamicState::SCISSOR]),
+                    &PipelineDynamicStateCreateInfo::builder().dynamic_states(dynamic_states),
                 )
                 .layout(layout)
                 .render_pass(render_pass)
