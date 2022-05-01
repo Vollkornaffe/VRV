@@ -8,7 +8,7 @@ use ash::vk::{
     ImageView, Sampler, ShaderStageFlags, WriteDescriptorSet, WHOLE_SIZE,
 };
 
-use super::Base;
+use super::Context;
 
 pub struct DescriptorRelated {
     pub layout: DescriptorSetLayout,
@@ -23,13 +23,13 @@ pub enum Usage {
 
 impl DescriptorRelated {
     pub fn new_with_sets(
-        base: &Base,
+        context: &Context,
         setup: HashMap<u32, (DescriptorType, ShaderStageFlags)>,
         usages: &[HashMap<u32, Usage>],
         name: String,
     ) -> Result<(Self, Vec<DescriptorSet>)> {
         let layout = unsafe {
-            base.device.create_descriptor_set_layout(
+            context.device.create_descriptor_set_layout(
                 &DescriptorSetLayoutCreateInfo::builder().bindings(
                     &setup
                         .iter()
@@ -46,11 +46,11 @@ impl DescriptorRelated {
                 None,
             )
         }?;
-        base.name_object(layout, format!("{}Layout", name))?;
+        context.name_object(layout, format!("{}Layout", name))?;
 
         let num_sets = usages.len() as u32;
         let pool = unsafe {
-            base.device.create_descriptor_pool(
+            context.device.create_descriptor_pool(
                 &DescriptorPoolCreateInfo::builder()
                     .pool_sizes(
                         &[
@@ -89,20 +89,20 @@ impl DescriptorRelated {
                 None,
             )
         }?;
-        base.name_object(pool, format!("{}Pool", name))?;
+        context.name_object(pool, format!("{}Pool", name))?;
 
         let sets: Vec<DescriptorSet> = usages
             .iter()
             .enumerate()
             .map(|(i, usage_map)| {
                 let set = unsafe {
-                    base.device.allocate_descriptor_sets(
+                    context.device.allocate_descriptor_sets(
                         &DescriptorSetAllocateInfo::builder()
                             .descriptor_pool(pool)
                             .set_layouts(&[layout]),
                     )
                 }?[0];
-                base.name_object(set, format!("{}Set_{}", name, i))?;
+                context.name_object(set, format!("{}Set_{}", name, i))?;
 
                 struct Info {
                     binding: u32,
@@ -135,7 +135,7 @@ impl DescriptorRelated {
                     .collect();
 
                 unsafe {
-                    base.device.update_descriptor_sets(
+                    context.device.update_descriptor_sets(
                         &infos
                             .iter()
                             .map(|info| {
@@ -173,8 +173,10 @@ impl DescriptorRelated {
         Ok((Self { layout, pool }, sets))
     }
 
-    pub unsafe fn destroy(&self, base: &Base) {
-        base.device.destroy_descriptor_pool(self.pool, None);
-        base.device.destroy_descriptor_set_layout(self.layout, None);
+    pub unsafe fn destroy(&self, context: &Context) {
+        context.device.destroy_descriptor_pool(self.pool, None);
+        context
+            .device
+            .destroy_descriptor_set_layout(self.layout, None);
     }
 }

@@ -1,20 +1,21 @@
 use anyhow::Result;
 use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCreateInfo};
 
-use super::Base;
+use super::Context;
 
-pub fn create_semaphore(base: &Base, name: String) -> Result<Semaphore> {
+pub fn create_semaphore(context: &Context, name: String) -> Result<Semaphore> {
     let semaphore = unsafe {
-        base.device
+        context
+            .device
             .create_semaphore(&SemaphoreCreateInfo::builder(), None)
     }?;
-    base.name_object(semaphore, name)?;
+    context.name_object(semaphore, name)?;
     Ok(semaphore)
 }
 
-pub fn create_fence(base: &Base, signaled: bool, name: String) -> Result<Fence> {
+pub fn create_fence(context: &Context, signaled: bool, name: String) -> Result<Fence> {
     let fence = unsafe {
-        base.device.create_fence(
+        context.device.create_fence(
             &FenceCreateInfo::builder().flags(if signaled {
                 FenceCreateFlags::SIGNALED
             } else {
@@ -23,18 +24,18 @@ pub fn create_fence(base: &Base, signaled: bool, name: String) -> Result<Fence> 
             None,
         )
     }?;
-    base.name_object(fence, name)?;
+    context.name_object(fence, name)?;
     Ok(fence)
 }
 
-pub fn wait_and_reset(base: &Base, fence: Fence) -> Result<()> {
+pub fn wait_and_reset(context: &Context, fence: Fence) -> Result<()> {
     unsafe {
-        base.device.wait_for_fences(
+        context.device.wait_for_fences(
             &[fence],
             true,          // wait all
             std::u64::MAX, // don't timeout
         )
     }?;
-    unsafe { base.device.reset_fences(&[fence]) }?;
+    unsafe { context.device.reset_fences(&[fence]) }?;
     Ok(())
 }

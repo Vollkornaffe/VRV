@@ -9,7 +9,7 @@ use ash::vk::{
 };
 use memoffset::offset_of;
 
-use super::{buffers::MappedDeviceBuffer, Base};
+use super::{buffers::MappedDeviceBuffer, Context};
 
 #[repr(C)]
 pub struct Vertex {
@@ -133,15 +133,15 @@ pub struct MeshBuffers {
 }
 
 impl MeshBuffers {
-    pub fn new(base: &Base, vertices: usize, indices: usize, name: String) -> Result<Self> {
+    pub fn new(context: &Context, vertices: usize, indices: usize, name: String) -> Result<Self> {
         let vertex = MappedDeviceBuffer::new(
-            base,
+            context,
             BufferUsageFlags::VERTEX_BUFFER,
             vertices,
             format!("{}Vertex", name),
         )?;
         let index = MappedDeviceBuffer::new(
-            base,
+            context,
             BufferUsageFlags::INDEX_BUFFER,
             indices,
             format!("{}Index", name),
@@ -154,15 +154,15 @@ impl MeshBuffers {
         })
     }
 
-    pub fn resize_vertex(&mut self, base: &Base, new_size: usize) -> Result<()> {
+    pub fn resize_vertex(&mut self, context: &Context, new_size: usize) -> Result<()> {
         if self.vertex.size() == new_size {
             return Ok(());
         }
 
-        unsafe { self.vertex.destroy(base) };
+        unsafe { self.vertex.destroy(context) };
 
         self.vertex = MappedDeviceBuffer::new(
-            base,
+            context,
             BufferUsageFlags::VERTEX_BUFFER,
             new_size,
             format!("{}Vertex", self.name),
@@ -171,15 +171,15 @@ impl MeshBuffers {
         Ok(())
     }
 
-    pub fn resize_index(&mut self, base: &Base, new_size: usize) -> Result<()> {
+    pub fn resize_index(&mut self, context: &Context, new_size: usize) -> Result<()> {
         if self.index.size() == new_size {
             return Ok(());
         }
 
-        unsafe { self.index.destroy(base) };
+        unsafe { self.index.destroy(context) };
 
         self.index = MappedDeviceBuffer::new(
-            base,
+            context,
             BufferUsageFlags::INDEX_BUFFER,
             new_size,
             format!("{}Index", self.name),
@@ -188,13 +188,13 @@ impl MeshBuffers {
         Ok(())
     }
 
-    pub fn write(&mut self, base: &Base, mesh: &Mesh) -> Result<()> {
+    pub fn write(&mut self, context: &Context, mesh: &Mesh) -> Result<()> {
         if self.vertex.size() < mesh.vertices.len() {
-            self.resize_vertex(base, mesh.vertices.len())?;
+            self.resize_vertex(context, mesh.vertices.len())?;
         }
 
         if self.index.size() < mesh.indices.len() {
-            self.resize_index(base, mesh.indices.len())?;
+            self.resize_index(context, mesh.indices.len())?;
         }
 
         self.vertex.write(&mesh.vertices);
@@ -219,8 +219,8 @@ impl MeshBuffers {
         self.index.handle()
     }
 
-    pub unsafe fn destroy(&self, base: &Base) {
-        self.vertex.destroy(base);
-        self.index.destroy(base);
+    pub unsafe fn destroy(&self, context: &Context) {
+        self.vertex.destroy(context);
+        self.index.destroy(context);
     }
 }

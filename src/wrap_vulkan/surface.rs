@@ -9,7 +9,7 @@ use ash::{
 };
 use winit::window::Window;
 
-use super::Base;
+use super::Context;
 
 pub struct SurfaceRelated {
     pub loader: Surface,
@@ -72,7 +72,7 @@ impl SurfaceRelated {
         Ok(Self { loader, surface })
     }
 
-    pub fn get_detail(&self, base: &Base) -> Result<Detail> {
-        Self::detail(&self.loader, *base.physical_device, self.surface)
+    pub fn get_detail(&self, context: &Context) -> Result<Detail> {
+        Self::detail(&self.loader, *context.physical_device, self.surface)
     }
 }

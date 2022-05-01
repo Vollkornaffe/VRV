@@ -6,15 +6,15 @@ use ash::vk::{
     SUBPASS_EXTERNAL,
 };
 
-use super::Base;
+use super::Context;
 
-pub fn create_render_pass_window(base: &Base) -> Result<RenderPass> {
+pub fn create_render_pass_window(context: &Context) -> Result<RenderPass> {
     let render_pass = unsafe {
-        base.device.create_render_pass(
+        context.device.create_render_pass(
             &RenderPassCreateInfo::builder()
                 .attachments(&[
                     AttachmentDescription::builder()
-                        .format(base.get_surface_format()?)
+                        .format(context.get_surface_format()?)
                         .samples(SampleCountFlags::TYPE_1)
                         .load_op(AttachmentLoadOp::CLEAR)
                         .store_op(AttachmentStoreOp::STORE)
@@ -24,7 +24,7 @@ pub fn create_render_pass_window(base: &Base) -> Result<RenderPass> {
                         .final_layout(ImageLayout::PRESENT_SRC_KHR)
                         .build(),
                     AttachmentDescription::builder()
-                        .format(base.find_supported_depth_stencil_format()?)
+                        .format(context.find_supported_depth_stencil_format()?)
                         .samples(SampleCountFlags::TYPE_1)
                         .load_op(AttachmentLoadOp::CLEAR)
                         .store_op(AttachmentStoreOp::DONT_CARE)
@@ -56,20 +56,20 @@ pub fn create_render_pass_window(base: &Base) -> Result<RenderPass> {
             None,
         )
     }?;
-    base.name_object(render_pass, "RenderPassWindow".to_string())?;
+    context.name_object(render_pass, "RenderPassWindow".to_string())?;
     Ok(render_pass)
 }
 
-pub fn create_render_pass_hmd(base: &Base) -> Result<RenderPass> {
+pub fn create_render_pass_hmd(context: &Context) -> Result<RenderPass> {
     // sets the 2 least significant bits
     let masks = [!(!0 << 2)];
 
     let render_pass = unsafe {
-        base.device.create_render_pass(
+        context.device.create_render_pass(
             &RenderPassCreateInfo::builder()
                 .attachments(&[
                     AttachmentDescription::builder()
-                        .format(base.find_supported_color_format()?)
+                        .format(context.find_supported_color_format()?)
                         .samples(SampleCountFlags::TYPE_1)
                         .load_op(AttachmentLoadOp::CLEAR)
                         .store_op(AttachmentStoreOp::STORE)
@@ -77,10 +77,10 @@ pub fn create_render_pass_hmd(base: &Base) -> Result<RenderPass> {
                         .stencil_store_op(AttachmentStoreOp::DONT_CARE)
                         .initial_layout(ImageLayout::UNDEFINED)
                         // final layout isn't PRESENT_SRC_KHR
-                        .final_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+                        .final_layout(ImageLayout::TRANSFER_SRC_OPTIMAL)
                         .build(),
                     AttachmentDescription::builder()
-                        .format(base.find_supported_depth_stencil_format()?)
+                        .format(context.find_supported_depth_stencil_format()?)
                         .samples(SampleCountFlags::TYPE_1)
                         .load_op(AttachmentLoadOp::CLEAR)
                         .store_op(AttachmentStoreOp::DONT_CARE)
@@ -106,6 +106,7 @@ pub fn create_render_pass_hmd(base: &Base) -> Result<RenderPass> {
                     .src_subpass(SUBPASS_EXTERNAL)
                     .dst_subpass(0)
                     .src_stage_mask(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+                    .src_access_mask(AccessFlags::empty())
                     .dst_stage_mask(PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
                     .dst_access_mask(AccessFlags::COLOR_ATTACHMENT_WRITE)
                     .build()])
@@ -118,7 +119,7 @@ pub fn create_render_pass_hmd(base: &Base) -> Result<RenderPass> {
             None,
         )
     }?;
-    base.name_object(render_pass, "RenderPassHMD".to_string())?;
+    context.name_object(render_pass, "RenderPassHMD".to_string())?;
 
     Ok(render_pass)
 }

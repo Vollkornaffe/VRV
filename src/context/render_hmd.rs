@@ -1,6 +1,6 @@
 use crate::{
     wrap_vulkan::{geometry::MeshBuffers, sync::wait_and_reset},
-    State,
+    Context,
 };
 use anyhow::{Error, Result};
 use ash::vk::{
@@ -16,13 +16,13 @@ use openxr::{
 
 use super::PreRenderInfoHMD;
 
-impl State {
+impl Context {
     pub fn pre_render_hmd(&mut self) -> Result<PreRenderInfoHMD> {
-        let frame_state = self.frame_wait.wait()?;
-        self.frame_stream.begin()?;
+        let frame_state = self.hmd.frame_wait.wait()?;
+        self.hmd.frame_stream.begin()?;
 
         if !frame_state.should_render {
-            self.frame_stream.end(
+            self.hmd.frame_stream.end(
                 frame_state.predicted_display_time,
                 EnvironmentBlendMode::OPAQUE,
                 &[],
@@ -30,7 +30,7 @@ impl State {
         }
 
         let image_index = if frame_state.should_render {
-            Some(self.hmd_swapchain.swapchain.acquire_image()?)
+            Some(self.hmd.swapchain.swapchain.acquire_image()?)
         } else {
             None
         };
@@ -55,14 +55,15 @@ impl State {
 
         // Wait until the image is available to render to. The compositor could still be
         // reading from it.
-        self.hmd_swapchain
+        self.hmd
+            .swapchain
             .swapchain
             .wait_image(Duration::INFINITE)?;
 
-        let rendering_finished_fence = self.hmd_fences_rendering_finished[image_index as usize];
-        let command_buffer = self.hmd_command_buffers[image_index as usize];
-        let frame_buffer = self.hmd_swapchain.elements[image_index as usize].frame_buffer;
-        let extent = self.hmd_swapchain.extent;
+        let rendering_finished_fence = self.hmd.fences_rendering_finished[image_index as usize];
+        let command_buffer = self.hmd.command_buffers[image_index as usize];
+        let frame_buffer = self.hmd.swapchain.elements[image_index as usize].frame_buffer;
+        let extent = self.hmd.swapchain.extent;
 
         // wait for rendering operations
         wait_and_reset(&self.vulkan, rendering_finished_fence)?;
@@ -75,7 +76,7 @@ impl State {
             d.cmd_begin_render_pass(
                 command_buffer,
                 &RenderPassBeginInfo::builder()
-                    .render_pass(self.hmd_render_pass)
+                    .render_pass(self.hmd.render_pass)
                     .framebuffer(frame_buffer)
                     .render_area(*Rect2D::builder().extent(extent))
                     .clear_values(&[
@@ -121,8 +122,8 @@ impl State {
         } = pre_render_info;
 
         let image_index = image_index.ok_or(Error::msg("Shouldn't render, says OpenXR"))?;
-        let command_buffer = self.hmd_command_buffers[image_index as usize];
-        let rendering_finished_fence = self.hmd_fences_rendering_finished[image_index as usize];
+        let command_buffer = self.hmd.command_buffers[image_index as usize];
+        let rendering_finished_fence = self.hmd.fences_rendering_finished[image_index as usize];
 
         unsafe {
             self.vulkan.device.queue_submit(
@@ -134,9 +135,9 @@ impl State {
             )?;
         }
 
-        self.hmd_swapchain.swapchain.release_image()?;
+        self.hmd.swapchain.swapchain.release_image()?;
 
-        self.frame_stream.end(
+        self.hmd.frame_stream.end(
             frame_state.predicted_display_time,
             EnvironmentBlendMode::OPAQUE,
             &[&CompositionLayerProjection::new().space(&self.stage).views(
@@ -149,13 +150,13 @@ impl State {
                             .fov(view.fov)
                             .sub_image(
                                 SwapchainSubImage::new()
-                                    .swapchain(&self.hmd_swapchain.swapchain)
+                                    .swapchain(&self.hmd.swapchain.swapchain)
                                     .image_array_index(i as u32)
                                     .image_rect(Rect2Di {
                                         offset: Offset2Di::default(),
                                         extent: Extent2Di {
-                                            width: self.hmd_swapchain.extent.width as i32,
-                                            height: self.hmd_swapchain.extent.height as i32,
+                                            width: self.hmd.swapchain.extent.width as i32,
+                                            height: self.hmd.swapchain.extent.height as i32,
                                         },
                                     }),
                             )
