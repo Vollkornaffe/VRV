@@ -10,10 +10,11 @@ use ash::{
     extensions::{ext::DebugUtils, khr::Swapchain},
     vk::{
         api_version_major, api_version_minor, make_api_version, ApplicationInfo, CommandBuffer,
-        CommandBufferAllocateInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags,
-        CommandPoolCreateInfo, DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format,
-        FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, MemoryPropertyFlags,
-        PhysicalDevice, PhysicalDeviceMultiviewFeatures, Queue, QueueFlags,
+        CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel, CommandPool,
+        CommandPoolCreateFlags, CommandPoolCreateInfo, DeviceCreateInfo, DeviceQueueCreateInfo,
+        Extent2D, Format, FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo,
+        MemoryPropertyFlags, PhysicalDevice, PhysicalDeviceMultiviewFeatures, Queue, QueueFlags,
+        SubmitInfo,
     },
     Device, Entry, Instance,
 };
@@ -22,7 +23,7 @@ use crate::wrap_openxr;
 
 #[cfg(feature = "validation_vulkan")]
 use super::Debug;
-use super::{surface::Detail, SurfaceRelated};
+use super::{surface::Detail, sync::create_fence, SurfaceRelated};
 
 pub struct Context {
     pub entry: ManuallyDrop<Entry>,
@@ -417,5 +418,38 @@ impl Context {
         }
 
         Ok(buffers)
+    }
+
+    pub fn one_shot<T, F: FnOnce(CommandBuffer) -> Result<T>>(
+        &self,
+        cmd_writer: F,
+        name: String,
+    ) -> Result<T> {
+        let cmd = self.alloc_command_buffers(1, format!("{}CommandBuffer", name))?[0];
+        let fence = create_fence(&self, false, format!("{}Fence", name))?;
+
+        let cmd_result;
+        unsafe {
+            self.device
+                .begin_command_buffer(cmd, &CommandBufferBeginInfo::builder())?;
+
+            cmd_result = cmd_writer(cmd)?;
+
+            self.device.end_command_buffer(cmd)?;
+            self.device.queue_submit(
+                self.queue,
+                &[SubmitInfo::builder().command_buffers(&[cmd]).build()],
+                fence,
+            )?;
+            self.device.wait_for_fences(
+                &[fence],
+                true,          // wait all
+                std::u64::MAX, // don't timeout
+            )?;
+            self.device.free_command_buffers(self.pool, &[cmd]);
+            self.device.destroy_fence(fence, None);
+        }
+
+        Ok(cmd_result)
     }
 }

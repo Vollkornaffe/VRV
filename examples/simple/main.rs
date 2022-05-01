@@ -4,19 +4,17 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::Instant,
 };
 
-use ash::vk::{DynamicState, Extent2D};
+use ash::vk::{DynamicState, Extent2D, Format, ImageAspectFlags};
 use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector3};
+use egui::{AlphaImage, CentralPanel, FontDefinitions, ImageData, RawInput, Style};
 use openxr::{EventDataBuffer, SessionState, ViewConfigurationType};
 use per_frame::PerFrameWindow;
 use simplelog::{Config, SimpleLogger};
 use vk_shader_macros::include_glsl;
-use vrv::{
-    wrap_vulkan::{create_pipeline, create_pipeline_layout, pipeline::create_shader_module},
-    Context,
-};
+use vrv::wrap_vulkan::{create_pipeline, create_pipeline_layout, pipeline::create_shader_module};
+use vrv::{context::texture::create_texture, Context};
 use winit::{
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -32,12 +30,50 @@ mod camera;
 mod per_frame;
 
 fn main() {
-    let _ = SimpleLogger::init(log::LevelFilter::Warn, Config::default());
+    let _ = SimpleLogger::init(log::LevelFilter::Info, Config::default());
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     let mut context = Context::new(&window).unwrap();
+
+    let egui = egui::Context::default();
+    egui.set_fonts(FontDefinitions::default());
+    egui.set_style(Style::default());
+    let egui_output = egui.run(RawInput::default(), |ctx| {
+        CentralPanel::default().show(&ctx, |ui| {
+            ui.label("Hello egui!");
+        });
+    });
+
+    let font_texture = egui_output
+        .textures_delta
+        .set
+        .iter()
+        .map(|(id, delta)| match &delta.image {
+            ImageData::Color(_) => {
+                panic!("Got a color image for font")
+            }
+            ImageData::Alpha(AlphaImage { size, pixels }) => {
+                log::info!("size: {:?}", size);
+                create_texture(
+                    &context.vulkan,
+                    Extent2D {
+                        width: size[0] as u32,
+                        height: size[1] as u32,
+                    },
+                    &pixels,
+                    Format::R8_SRGB,
+                    ImageAspectFlags::COLOR,
+                    "FontTexture".to_string(),
+                )
+                .unwrap()
+            }
+        })
+        .next()
+        .unwrap();
+
+    return;
 
     let (hmd_per_frame_buffers, hmd_descriptor_related) =
         PerFrameHMD::new_vec(&context.vulkan, context.get_image_count_hmd()).unwrap();

@@ -77,6 +77,15 @@ impl<T> DeviceBuffer<T> {
 }
 
 impl<T> MappedDeviceBuffer<T> {
+    pub fn new_staging(context: &Context, len: usize, name: String) -> Result<Self> {
+        Self::new(
+            context,
+            BufferUsageFlags::TRANSFER_SRC | BufferUsageFlags::TRANSFER_DST,
+            len,
+            name,
+        )
+    }
+
     pub fn new(
         context: &Context,
         usage: BufferUsageFlags,

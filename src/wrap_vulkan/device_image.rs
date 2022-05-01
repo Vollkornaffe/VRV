@@ -1,12 +1,13 @@
 use anyhow::Result;
 use ash::vk::{
-    DeviceMemory, Extent2D, Extent3D, Format, Image, ImageAspectFlags, ImageCreateInfo,
-    ImageLayout, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView,
-    ImageViewCreateInfo, ImageViewType, MemoryAllocateInfo, MemoryPropertyFlags, SampleCountFlags,
-    SharingMode,
+    AccessFlags, CommandBuffer, DependencyFlags, DeviceMemory, Extent2D, Extent3D, Format, Image,
+    ImageAspectFlags, ImageCreateInfo, ImageLayout, ImageMemoryBarrier, ImageSubresource,
+    ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView, ImageViewCreateInfo,
+    ImageViewType, MemoryAllocateInfo, MemoryPropertyFlags, PipelineStageFlags, SampleCountFlags,
+    SharingMode, SubmitInfo, QUEUE_FAMILY_IGNORED,
 };
 
-use super::Context;
+use super::{sync::create_fence, Context};
 
 pub struct DeviceImage {
     pub image: Image,
@@ -20,9 +21,21 @@ pub struct DeviceImageSettings {
     pub tiling: ImageTiling,
     pub usage: ImageUsageFlags,
     pub properties: MemoryPropertyFlags,
-    pub aspect_flags: ImageAspectFlags,
+    pub aspect_mask: ImageAspectFlags,
     pub layer_count: u32, // 2 for hmd
     pub name: String,
+}
+
+pub struct TransitionImageLayoutSettings {
+    pub image: Image,
+    pub layer: u32,
+    pub aspect_mask: ImageAspectFlags,
+    pub old_layout: ImageLayout,
+    pub new_layout: ImageLayout,
+    pub src_access: AccessFlags,
+    pub dst_access: AccessFlags,
+    pub src_stage: PipelineStageFlags,
+    pub dst_stage: PipelineStageFlags,
 }
 
 impl DeviceImage {
@@ -30,7 +43,7 @@ impl DeviceImage {
         context: &Context,
         image: Image,
         format: Format,
-        aspect_flags: ImageAspectFlags,
+        aspect_mask: ImageAspectFlags,
         layer_count: u32,
         name: String,
     ) -> Result<ImageView> {
@@ -46,7 +59,7 @@ impl DeviceImage {
                     .format(format)
                     .subresource_range(
                         ImageSubresourceRange::builder()
-                            .aspect_mask(aspect_flags)
+                            .aspect_mask(aspect_mask)
                             .base_mip_level(0)
                             .level_count(1)
                             .base_array_layer(0)
@@ -103,7 +116,7 @@ impl DeviceImage {
             context,
             image,
             settings.format,
-            settings.aspect_flags,
+            settings.aspect_mask,
             settings.layer_count,
             format!("{}View", settings.name.clone()),
         )?;
@@ -113,6 +126,42 @@ impl DeviceImage {
             memory,
             view,
         })
+    }
+
+    pub fn transition_layout(
+        &self,
+        context: &Context,
+        settings: TransitionImageLayoutSettings,
+        cmd: CommandBuffer,
+    ) {
+        unsafe {
+            context.device.cmd_pipeline_barrier(
+                cmd,
+                settings.src_stage,
+                settings.dst_stage,
+                DependencyFlags::default(),
+                &[],
+                &[],
+                &[ImageMemoryBarrier::builder()
+                    .src_access_mask(settings.src_access)
+                    .dst_access_mask(settings.dst_access)
+                    .old_layout(settings.old_layout)
+                    .new_layout(settings.new_layout)
+                    .src_queue_family_index(QUEUE_FAMILY_IGNORED)
+                    .dst_queue_family_index(QUEUE_FAMILY_IGNORED)
+                    .image(self.image)
+                    .subresource_range(
+                        ImageSubresourceRange::builder()
+                            .aspect_mask(settings.aspect_mask)
+                            .base_mip_level(0)
+                            .level_count(1)
+                            .base_array_layer(0)
+                            .layer_count(settings.layer)
+                            .build(),
+                    )
+                    .build()],
+            )
+        }
     }
 
     pub unsafe fn destroy(&self, context: &Context) {

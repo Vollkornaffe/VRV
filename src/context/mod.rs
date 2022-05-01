@@ -1,6 +1,7 @@
 pub mod render_hmd;
 pub mod render_window;
 pub mod swapchain;
+pub mod texture;
 use std::mem::ManuallyDrop;
 
 use anyhow::{Error, Result};
