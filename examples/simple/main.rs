@@ -15,7 +15,7 @@ use simplelog::{Config, SimpleLogger};
 use vk_shader_macros::include_glsl;
 use vrv::{
     wrap_vulkan::{create_pipeline, create_pipeline_layout, pipeline::create_shader_module},
-    State,
+    Context,
 };
 use winit::{
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
@@ -37,13 +37,13 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut state = State::new(&window).unwrap();
+    let mut context = Context::new(&window).unwrap();
 
     let (hmd_per_frame_buffers, hmd_descriptor_related) =
-        PerFrameHMD::new_vec(&state.vulkan, state.get_image_count_hmd()).unwrap();
+        PerFrameHMD::new_vec(&context.vulkan, context.get_image_count_hmd()).unwrap();
 
     let (window_per_frame_buffers, window_descriptor_related) =
-        PerFrameWindow::new_vec(&state.vulkan, state.get_image_count_window()).unwrap();
+        PerFrameWindow::new_vec(&context.vulkan, context.get_image_count_window()).unwrap();
 
     const HMD_VERT: &[u32] = include_glsl!("shaders/example_hmd.vert");
     const HMD_FRAG: &[u32] = include_glsl!("shaders/example_hmd.frag");
@@ -52,43 +52,43 @@ fn main() {
     const WINDOW_FRAG: &[u32] = include_glsl!("shaders/example_window.frag");
 
     let hmd_module_vert =
-        create_shader_module(&state.vulkan, HMD_VERT, "HMDShaderVert".to_string()).unwrap();
+        create_shader_module(&context.vulkan, HMD_VERT, "HMDShaderVert".to_string()).unwrap();
     let hmd_module_frag =
-        create_shader_module(&state.vulkan, HMD_FRAG, "HMDShaderFrag".to_string()).unwrap();
+        create_shader_module(&context.vulkan, HMD_FRAG, "HMDShaderFrag".to_string()).unwrap();
 
     let window_module_vert =
-        create_shader_module(&state.vulkan, WINDOW_VERT, "WindowShaderVert".to_string()).unwrap();
+        create_shader_module(&context.vulkan, WINDOW_VERT, "WindowShaderVert".to_string()).unwrap();
     let window_module_frag =
-        create_shader_module(&state.vulkan, WINDOW_FRAG, "WindowShaderFrag".to_string()).unwrap();
+        create_shader_module(&context.vulkan, WINDOW_FRAG, "WindowShaderFrag".to_string()).unwrap();
 
     let hmd_pipeline_layout = create_pipeline_layout(
-        &state.vulkan,
+        &context.vulkan,
         hmd_descriptor_related.layout,
         "HMDPipelineLayout".to_string(),
     )
     .unwrap();
 
     let hmd_pipeline = create_pipeline(
-        &state.vulkan,
-        state.hmd_render_pass,
+        &context.vulkan,
+        context.hmd.render_pass,
         hmd_pipeline_layout,
         hmd_module_vert,
         hmd_module_frag,
-        state.openxr.get_resolution().unwrap(),
+        context.openxr.get_resolution().unwrap(),
         &[], // no dynamic state for now
         "HMDPipeline".to_string(),
     )
     .unwrap();
 
     let window_pipeline_layout = create_pipeline_layout(
-        &state.vulkan,
+        &context.vulkan,
         window_descriptor_related.layout,
         "WindowPipelineLayout".to_string(),
     )
     .unwrap();
     let window_pipeline = create_pipeline(
-        &state.vulkan,
-        state.window_render_pass,
+        &context.vulkan,
+        context.window.render_pass,
         window_pipeline_layout,
         window_module_vert,
         window_module_frag,
@@ -102,20 +102,20 @@ fn main() {
     .unwrap();
 
     unsafe {
-        state
+        context
             .vulkan
             .device
             .destroy_shader_module(hmd_module_vert, None);
-        state
+        context
             .vulkan
             .device
             .destroy_shader_module(hmd_module_frag, None);
 
-        state
+        context
             .vulkan
             .device
             .destroy_shader_module(window_module_vert, None);
-        state
+        context
             .vulkan
             .device
             .destroy_shader_module(window_module_frag, None);
@@ -148,7 +148,7 @@ fn main() {
 
                 *control_flow = ControlFlow::Exit;
 
-                match state.session.request_exit() {
+                match context.session.request_exit() {
                     Ok(()) => {}
                     Err(openxr::sys::Result::ERROR_SESSION_NOT_RUNNING) => {}
                     Err(e) => panic!("{}", e),
@@ -158,7 +158,7 @@ fn main() {
             }
 
             // handle OpenXR events
-            while let Some(event) = state
+            while let Some(event) = context
                 .openxr
                 .instance
                 .poll_event(&mut xr_event_storage)
@@ -173,14 +173,14 @@ fn main() {
                         xr_focused = false;
                         match e.state() {
                             SessionState::READY => {
-                                state
+                                context
                                     .session
                                     .begin(ViewConfigurationType::PRIMARY_STEREO)
                                     .unwrap();
                                 xr_session_running = true;
                             }
                             SessionState::STOPPING => {
-                                state.session.end().unwrap();
+                                context.session.end().unwrap();
                                 xr_session_running = false;
                             }
                             SessionState::FOCUSED => {
@@ -204,12 +204,12 @@ fn main() {
                 }
             }
 
-            let hmd_pre_render_info = state.pre_render_hmd().unwrap();
+            let hmd_pre_render_info = context.pre_render_hmd().unwrap();
             if hmd_pre_render_info.image_index.is_some() {
                 let image_index = hmd_pre_render_info.image_index.unwrap();
                 let hmd_current_frame = &hmd_per_frame_buffers[image_index as usize];
 
-                state
+                context
                     .record_hmd(
                         hmd_pre_render_info,
                         hmd_pipeline_layout,
@@ -218,7 +218,7 @@ fn main() {
                         hmd_current_frame.descriptor_set,
                     )
                     .unwrap();
-                let views = state
+                let views = context
                     .get_views(hmd_pre_render_info.frame_state.predicted_display_time)
                     .unwrap();
 
@@ -230,10 +230,10 @@ fn main() {
                     proj_right: fov_to_projection(views[1].fov),
                 }]);
 
-                state.submit_hmd(hmd_pre_render_info, &views).unwrap();
+                context.submit_hmd(hmd_pre_render_info, &views).unwrap();
             }
 
-            let window_pre_render_info = state.pre_render_window().unwrap();
+            let window_pre_render_info = context.pre_render_window().unwrap();
             let window_current_frame =
                 &window_per_frame_buffers[window_pre_render_info.image_index as usize];
 
@@ -266,7 +266,7 @@ fn main() {
                     },
                 }]);
 
-            state
+            context
                 .render_window(
                     window_pre_render_info,
                     window_pipeline_layout,
@@ -297,7 +297,7 @@ fn main() {
                     // TODO if the window is minimized, size is 0,0
                     // we need to make vulkan chill
                     log::info!("Resizing to {:?}", new_inner_size);
-                    state.resize(&window).unwrap();
+                    context.resize(&window).unwrap();
                 }
                 WindowEvent::ScaleFactorChanged {
                     scale_factor, // important for HUD and text in general
@@ -305,7 +305,7 @@ fn main() {
                 } => {
                     log::info!("Changing scale to {}", scale_factor);
                     log::info!("Resizing to {:?}", new_inner_size);
-                    state.resize(&window).unwrap();
+                    context.resize(&window).unwrap();
                 }
                 // record key presses
                 WindowEvent::KeyboardInput {

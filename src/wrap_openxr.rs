@@ -119,7 +119,7 @@ use debug::Debug;
 
 use crate::wrap_vulkan;
 
-pub struct Base {
+pub struct Context {
     #[cfg(feature = "validation_openxr")]
     pub debug: Debug,
 
@@ -128,11 +128,11 @@ pub struct Base {
     pub system_id: SystemId,
 }
 
-impl Base {
+impl Context {
     pub fn new() -> Result<Self> {
         const VALIDATION_LAYER_NAME: &'static str = "XR_APILAYER_LUNARG_core_validation";
 
-        log::info!("Creating new OpenXR Base");
+        log::info!("Creating new OpenXR Context");
 
         let entry = Entry::linked();
         let available_extensions = entry.enumerate_extensions()?;
@@ -302,7 +302,7 @@ impl Base {
 
     pub fn init_with_vulkan(
         &self,
-        vk_base: &wrap_vulkan::Base,
+        vk_context: &wrap_vulkan::Context,
     ) -> Result<(Session<Vulkan>, FrameWaiter, FrameStream<Vulkan>)> {
         // A session represents this application's desire to display things! This is where we hook
         // up our graphics API. This does not start the session; for that, you'll need a call to Session::begin
@@ -310,10 +310,10 @@ impl Base {
             self.instance.create_session::<Vulkan>(
                 self.system_id,
                 &SessionCreateInfo {
-                    instance: vk_base.instance.handle().as_raw() as _,
-                    physical_device: vk_base.physical_device.as_raw() as _,
-                    device: vk_base.device.handle().as_raw() as _,
-                    queue_family_index: vk_base.queue_family_index,
+                    instance: vk_context.instance.handle().as_raw() as _,
+                    physical_device: vk_context.physical_device.as_raw() as _,
+                    device: vk_context.device.handle().as_raw() as _,
+                    queue_family_index: vk_context.queue_family_index,
                     queue_index: 0,
                 },
             )

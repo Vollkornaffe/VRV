@@ -6,7 +6,7 @@ use ash::vk::{
     SharingMode,
 };
 
-use super::Base;
+use super::Context;
 
 pub struct DeviceImage {
     pub image: Image,
@@ -27,7 +27,7 @@ pub struct DeviceImageSettings {
 
 impl DeviceImage {
     pub fn new_view(
-        base: &Base,
+        context: &Context,
         image: Image,
         format: Format,
         aspect_flags: ImageAspectFlags,
@@ -35,7 +35,7 @@ impl DeviceImage {
         name: String,
     ) -> Result<ImageView> {
         let view = unsafe {
-            base.device.create_image_view(
+            context.device.create_image_view(
                 &ImageViewCreateInfo::builder()
                     .image(image)
                     .view_type(if layer_count == 1 {
@@ -56,13 +56,13 @@ impl DeviceImage {
                 None,
             )
         }?;
-        base.name_object(view, name)?;
+        context.name_object(view, name)?;
         Ok(view)
     }
 
-    pub fn new(base: &Base, settings: DeviceImageSettings) -> Result<Self> {
+    pub fn new(context: &Context, settings: DeviceImageSettings) -> Result<Self> {
         let image = unsafe {
-            base.device.create_image(
+            context.device.create_image(
                 &ImageCreateInfo::builder()
                     .image_type(ImageType::TYPE_2D)
                     .extent(Extent3D {
@@ -81,26 +81,26 @@ impl DeviceImage {
                 None,
             )
         }?;
-        base.name_object(image, format!("{}Image", settings.name.clone()))?;
+        context.name_object(image, format!("{}Image", settings.name.clone()))?;
 
-        let memory_requirements = unsafe { base.device.get_image_memory_requirements(image) };
+        let memory_requirements = unsafe { context.device.get_image_memory_requirements(image) };
         let memory = unsafe {
-            base.device.allocate_memory(
+            context.device.allocate_memory(
                 &MemoryAllocateInfo::builder()
                     .allocation_size(memory_requirements.size)
-                    .memory_type_index(base.find_memory_type_index(
+                    .memory_type_index(context.find_memory_type_index(
                         MemoryPropertyFlags::from_raw(memory_requirements.memory_type_bits),
                         settings.properties,
                     )?),
                 None,
             )?
         };
-        base.name_object(memory, format!("{}Memory", settings.name.clone()))?;
+        context.name_object(memory, format!("{}Memory", settings.name.clone()))?;
 
-        unsafe { base.device.bind_image_memory(image, memory, 0) }?;
+        unsafe { context.device.bind_image_memory(image, memory, 0) }?;
 
         let view = Self::new_view(
-            base,
+            context,
             image,
             settings.format,
             settings.aspect_flags,
@@ -115,9 +115,9 @@ impl DeviceImage {
         })
     }
 
-    pub unsafe fn destroy(&self, base: &Base) {
-        base.device.destroy_image_view(self.view, None);
-        base.device.destroy_image(self.image, None);
-        base.device.free_memory(self.memory, None);
+    pub unsafe fn destroy(&self, context: &Context) {
+        context.device.destroy_image_view(self.view, None);
+        context.device.destroy_image(self.image, None);
+        context.device.free_memory(self.memory, None);
     }
 }

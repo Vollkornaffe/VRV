@@ -24,7 +24,7 @@ use crate::wrap_openxr;
 use super::Debug;
 use super::{surface::Detail, SurfaceRelated};
 
-pub struct Base {
+pub struct Context {
     pub entry: ManuallyDrop<Entry>,
     pub instance: ManuallyDrop<Instance>,
     pub physical_device: ManuallyDrop<PhysicalDevice>,
@@ -40,7 +40,7 @@ pub struct Base {
     pub queue: Queue,
 }
 
-impl Drop for Base {
+impl Drop for Context {
     fn drop(&mut self) {
         unsafe {
             ManuallyDrop::drop(&mut self.window_surface_related);
@@ -54,8 +54,8 @@ impl Drop for Base {
     }
 }
 
-impl Base {
-    pub fn new(window: &Window, wrap_openxr: &wrap_openxr::Base) -> Result<Base> {
+impl Context {
+    pub fn new(window: &Window, wrap_openxr: &wrap_openxr::Context) -> Result<Context> {
         #[cfg(feature = "validation_vulkan")]
         const VALIDATION_LAYER_NAME: &'static str = "VK_LAYER_KHRONOS_validation";
         #[cfg(feature = "validation_vulkan")]

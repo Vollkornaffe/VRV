@@ -6,7 +6,7 @@ use ash::vk::{
     MemoryMapFlags, MemoryPropertyFlags, SharingMode, WHOLE_SIZE,
 };
 
-use super::Base;
+use super::Context;
 
 pub struct DeviceBuffer<T> {
     pub handle: Buffer,
@@ -22,7 +22,7 @@ pub struct MappedDeviceBuffer<T> {
 
 impl<T> DeviceBuffer<T> {
     pub fn new(
-        base: &Base,
+        context: &Context,
         usage: BufferUsageFlags,
         properties: MemoryPropertyFlags,
         len: usize,
@@ -31,7 +31,7 @@ impl<T> DeviceBuffer<T> {
         let size = (len * size_of::<T>()) as DeviceSize;
 
         let handle = unsafe {
-            base.device.create_buffer(
+            context.device.create_buffer(
                 &BufferCreateInfo::builder()
                     .size(size)
                     .usage(usage)
@@ -39,16 +39,17 @@ impl<T> DeviceBuffer<T> {
                 None,
             )
         }?;
-        base.name_object(handle, format!("{}Handle", name))?;
+        context.name_object(handle, format!("{}Handle", name))?;
 
         let memory = unsafe {
-            base.device.allocate_memory(
+            context.device.allocate_memory(
                 &MemoryAllocateInfo::builder()
                     .allocation_size(size)
                     .memory_type_index(
-                        base.find_memory_type_index(
+                        context.find_memory_type_index(
                             MemoryPropertyFlags::from_raw(
-                                base.device
+                                context
+                                    .device
                                     .get_buffer_memory_requirements(handle)
                                     .memory_type_bits,
                             ),
@@ -58,9 +59,9 @@ impl<T> DeviceBuffer<T> {
                 None,
             )
         }?;
-        base.name_object(memory, format!("{}Memory", name))?;
+        context.name_object(memory, format!("{}Memory", name))?;
 
-        unsafe { base.device.bind_buffer_memory(handle, memory, 0) }?;
+        unsafe { context.device.bind_buffer_memory(handle, memory, 0) }?;
         Ok(Self {
             handle,
             memory,
@@ -69,23 +70,29 @@ impl<T> DeviceBuffer<T> {
         })
     }
 
-    pub unsafe fn destroy(&self, base: &Base) {
-        base.device.destroy_buffer(self.handle, None);
-        base.device.free_memory(self.memory, None);
+    pub unsafe fn destroy(&self, context: &Context) {
+        context.device.destroy_buffer(self.handle, None);
+        context.device.free_memory(self.memory, None);
     }
 }
 
 impl<T> MappedDeviceBuffer<T> {
-    pub fn new(base: &Base, usage: BufferUsageFlags, len: usize, name: String) -> Result<Self> {
+    pub fn new(
+        context: &Context,
+        usage: BufferUsageFlags,
+        len: usize,
+        name: String,
+    ) -> Result<Self> {
         let buffer = DeviceBuffer::new(
-            base,
+            context,
             usage,
             MemoryPropertyFlags::HOST_COHERENT | MemoryPropertyFlags::HOST_VISIBLE,
             len,
             name.clone(),
         )?;
         let mapped_ptr = unsafe {
-            base.device
+            context
+                .device
                 .map_memory(buffer.memory, 0, WHOLE_SIZE, MemoryMapFlags::empty())
         }? as *mut T;
 
@@ -108,7 +115,7 @@ impl<T> MappedDeviceBuffer<T> {
         self.buffer.len
     }
 
-    pub unsafe fn destroy(&self, base: &Base) {
-        self.buffer.destroy(base);
+    pub unsafe fn destroy(&self, context: &Context) {
+        self.buffer.destroy(context);
     }
 }

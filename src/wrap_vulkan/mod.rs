@@ -1,5 +1,5 @@
-pub mod base;
 pub mod buffers;
+pub mod context;
 #[cfg(feature = "validation_vulkan")]
 pub mod debug;
 pub mod descriptors;
@@ -10,7 +10,7 @@ pub mod render_pass;
 pub mod surface;
 pub mod sync;
 
-pub use base::Base;
+pub use context::Context;
 #[cfg(feature = "validation_vulkan")]
 pub use debug::Debug;
 pub use device_image::DeviceImage;

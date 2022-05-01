@@ -13,35 +13,40 @@ use ash::vk::{
     SampleCountFlags, ShaderModule, ShaderModuleCreateInfo, Viewport,
 };
 
-use super::{Base, Vertex};
+use super::{Context, Vertex};
 
 // later we can add push constants
 pub fn create_pipeline_layout(
-    base: &Base,
+    context: &Context,
     set_layout: DescriptorSetLayout,
     name: String,
 ) -> Result<PipelineLayout> {
     let layout = unsafe {
-        base.device.create_pipeline_layout(
+        context.device.create_pipeline_layout(
             &PipelineLayoutCreateInfo::builder().set_layouts(&[set_layout]),
             None,
         )
     }?;
-    base.name_object(layout, name)?;
+    context.name_object(layout, name)?;
     Ok(layout)
 }
 
-pub fn create_shader_module(base: &Base, spirv: &[u32], name: String) -> Result<ShaderModule> {
+pub fn create_shader_module(
+    context: &Context,
+    spirv: &[u32],
+    name: String,
+) -> Result<ShaderModule> {
     let module = unsafe {
-        base.device
+        context
+            .device
             .create_shader_module(&ShaderModuleCreateInfo::builder().code(spirv), None)
     }?;
-    base.name_object(module, name)?;
+    context.name_object(module, name)?;
     Ok(module)
 }
 
 pub fn create_pipeline(
-    base: &Base,
+    context: &Context,
     render_pass: RenderPass,
     layout: PipelineLayout,
     module_vert: ShaderModule,
@@ -55,7 +60,7 @@ pub fn create_pipeline(
 
     let entry_point = CString::new("main").unwrap();
     let pipeline = unsafe {
-        base.device.create_graphics_pipelines(
+        context.device.create_graphics_pipelines(
             PipelineCache::default(),
             &[GraphicsPipelineCreateInfo::builder()
                 .stages(&[
@@ -158,7 +163,7 @@ pub fn create_pipeline(
         )
     }
     .map_err(|(_, e)| e)?[0];
-    base.name_object(pipeline, name)?;
+    context.name_object(pipeline, name)?;
 
     Ok(pipeline)
 }

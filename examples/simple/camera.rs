@@ -67,8 +67,6 @@ impl SphereCoords {
             }
         }
 
-        log::error!("theta: {:.3}, phi: {:.3}", self.theta, self.phi);
-
         self.theta = self.theta.clamp(0.1, PI - 0.1);
         self.phi %= 2.0 * PI;
         self.radius = self.radius.clamp(0.0, 100.0);

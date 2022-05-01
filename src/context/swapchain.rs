@@ -37,15 +37,15 @@ pub struct SwapchainHMD {
 
 impl SwapchainWindow {
     pub fn new(
-        base: &wrap_vulkan::Base,
+        context: &wrap_vulkan::Context,
         render_pass: RenderPass,
         wanted: Extent2D,
     ) -> Result<Self> {
-        let depth_format = base.find_supported_depth_stencil_format()?;
-        let extent = base.get_allowed_extend(wanted)?;
+        let depth_format = context.find_supported_depth_stencil_format()?;
+        let extent = context.get_allowed_extend(wanted)?;
 
         let depth_image = DeviceImage::new(
-            base,
+            context,
             DeviceImageSettings {
                 extent: extent,
                 format: depth_format,
@@ -63,18 +63,18 @@ impl SwapchainWindow {
             present_modes,
             image_count,
             format,
-        } = base.window_surface_related.get_detail(base)?;
+        } = context.window_surface_related.get_detail(context)?;
 
         // we don't want the window to block our rendering
         let present_mode = *present_modes
             .iter()
             .find(|&&m| m == PresentModeKHR::IMMEDIATE)
             .ok_or(Error::msg("No suitable present mode"))?;
-        let loader = Swapchain::new(&base.instance, &base.device);
+        let loader = Swapchain::new(&context.instance, &context.device);
         let handle = unsafe {
             loader.create_swapchain(
                 &SwapchainCreateInfoKHR::builder()
-                    .surface(base.window_surface_related.surface)
+                    .surface(context.window_surface_related.surface)
                     .min_image_count(image_count)
                     .image_color_space(format.color_space)
                     .image_format(format.format)
@@ -90,11 +90,11 @@ impl SwapchainWindow {
             )
         }?;
         // there is also the HMD swapchain
-        base.name_object(handle, "WindowSwapchain".to_string())?;
+        context.name_object(handle, "WindowSwapchain".to_string())?;
 
         let images = unsafe { loader.get_swapchain_images(handle) }?;
         for (i, &image) in images.iter().enumerate() {
-            base.name_object(image, format!("WindowSwapchainImage_{}", i))?;
+            context.name_object(image, format!("WindowSwapchainImage_{}", i))?;
         }
 
         if images.len() != image_count as usize {
@@ -106,7 +106,7 @@ impl SwapchainWindow {
             .map(|i| -> Result<SwapElement> {
                 let image = images[i as usize];
                 let view = DeviceImage::new_view(
-                    base,
+                    context,
                     image,
                     format.format,
                     ImageAspectFlags::COLOR,
@@ -115,7 +115,7 @@ impl SwapchainWindow {
                 )?;
 
                 let frame_buffer = unsafe {
-                    base.device.create_framebuffer(
+                    context.device.create_framebuffer(
                         &FramebufferCreateInfo::builder()
                             .render_pass(render_pass)
                             .attachments(&[view, depth_image.view])
@@ -125,7 +125,7 @@ impl SwapchainWindow {
                         None,
                     )?
                 };
-                base.name_object(frame_buffer, format!("WindowSwapchainFrameBuffer_{}", i))?;
+                context.name_object(frame_buffer, format!("WindowSwapchainFrameBuffer_{}", i))?;
 
                 Ok(SwapElement {
                     image,
@@ -144,34 +144,34 @@ impl SwapchainWindow {
         })
     }
 
-    pub unsafe fn destroy(&self, base: &wrap_vulkan::Base) {
+    pub unsafe fn destroy(&self, context: &wrap_vulkan::Context) {
         for e in &self.elements {
-            base.device.destroy_image_view(e.view, None);
-            base.device.destroy_framebuffer(e.frame_buffer, None);
+            context.device.destroy_image_view(e.view, None);
+            context.device.destroy_framebuffer(e.frame_buffer, None);
         }
         self.loader.destroy_swapchain(self.handle, None);
-        self.depth_image.destroy(base);
+        self.depth_image.destroy(context);
     }
 }
 
 impl SwapchainHMD {
     pub fn new(
-        xr_base: &wrap_openxr::Base,
-        vk_base: &wrap_vulkan::Base,
+        xr_context: &wrap_openxr::Context,
+        vk_context: &wrap_vulkan::Context,
         render_pass: RenderPass,
         session: &Session<Vulkan>,
     ) -> Result<Self> {
-        let extent = xr_base.get_resolution()?;
+        let extent = xr_context.get_resolution()?;
 
-        let format = vk_base.find_supported_color_format()?;
+        let format = vk_context.find_supported_color_format()?;
 
-        let swapchain = wrap_openxr::Base::get_swapchain(session, extent, format)?;
+        let swapchain = wrap_openxr::Context::get_swapchain(session, extent, format)?;
 
         let depth_image = DeviceImage::new(
-            vk_base,
+            vk_context,
             DeviceImageSettings {
                 extent: extent,
-                format: vk_base.find_supported_depth_stencil_format()?,
+                format: vk_context.find_supported_depth_stencil_format()?,
                 tiling: ImageTiling::OPTIMAL,
                 usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
                 properties: MemoryPropertyFlags::DEVICE_LOCAL,
@@ -187,10 +187,10 @@ impl SwapchainHMD {
             .enumerate()
             .map(|(i, xr_image_handle)| -> Result<SwapElement> {
                 let image = Image::from_raw(xr_image_handle);
-                vk_base.name_object(image, format!("HMDSwapchainImage_{}", i))?;
+                vk_context.name_object(image, format!("HMDSwapchainImage_{}", i))?;
 
                 let view = DeviceImage::new_view(
-                    vk_base,
+                    vk_context,
                     image,
                     format,
                     ImageAspectFlags::COLOR,
@@ -199,7 +199,7 @@ impl SwapchainHMD {
                 )?;
 
                 let frame_buffer = unsafe {
-                    vk_base.device.create_framebuffer(
+                    vk_context.device.create_framebuffer(
                         &FramebufferCreateInfo::builder()
                             .render_pass(render_pass)
                             .attachments(&[view, depth_image.view])
@@ -209,7 +209,7 @@ impl SwapchainHMD {
                         None,
                     )
                 }?;
-                vk_base.name_object(frame_buffer, format!("HMDSwapchainFrameBuffer_{}", i))?;
+                vk_context.name_object(frame_buffer, format!("HMDSwapchainFrameBuffer_{}", i))?;
 
                 Ok(SwapElement {
                     image,

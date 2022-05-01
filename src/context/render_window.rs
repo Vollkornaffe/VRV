@@ -1,6 +1,6 @@
 use crate::{
     wrap_vulkan::{geometry::MeshBuffers, sync::wait_and_reset},
-    State,
+    Context,
 };
 use anyhow::Result;
 use ash::vk::{
@@ -12,18 +12,18 @@ use ash::vk::{
 
 use super::PreRenderInfoWindow;
 
-impl State {
+impl Context {
     pub fn pre_render_window(&mut self) -> Result<PreRenderInfoWindow> {
         // prepare semaphore
         let image_acquired_semaphore =
-            self.window_semaphores_image_acquired[self.last_used_acquire_semaphore];
-        self.last_used_acquire_semaphore += 1;
-        self.last_used_acquire_semaphore %= self.window_semaphores_image_acquired.len();
+            self.window.semaphores_image_acquired[self.window.last_used_acquire_semaphore];
+        self.window.last_used_acquire_semaphore += 1;
+        self.window.last_used_acquire_semaphore %= self.window.semaphores_image_acquired.len();
 
         // acuire image
         let (image_index, _suboptimal) = unsafe {
-            self.window_swapchain.loader.acquire_next_image(
-                self.window_swapchain.handle,
+            self.window.swapchain.loader.acquire_next_image(
+                self.window.swapchain.handle,
                 std::u64::MAX, // don't timeout
                 image_acquired_semaphore,
                 ash::vk::Fence::default(),
@@ -51,16 +51,16 @@ impl State {
 
         // get the other stuff now that we know the index
         let rendering_finished_semaphore =
-            self.window_semaphores_rendering_finished[image_index as usize];
-        let rendering_finished_fence = self.window_fences_rendering_finished[image_index as usize];
-        let command_buffer = self.window_command_buffers[image_index as usize];
-        let frame_buffer = self.window_swapchain.elements[image_index as usize].frame_buffer;
+            self.window.semaphores_rendering_finished[image_index as usize];
+        let rendering_finished_fence = self.window.fences_rendering_finished[image_index as usize];
+        let command_buffer = self.window.command_buffers[image_index as usize];
+        let frame_buffer = self.window.swapchain.elements[image_index as usize].frame_buffer;
 
         // waite before resetting cmd buffer
         wait_and_reset(&self.vulkan, rendering_finished_fence)?;
 
         // for convenience
-        let extent = self.window_swapchain.extent;
+        let extent = self.window.swapchain.extent;
         unsafe {
             let d = &self.vulkan.device;
 
@@ -69,7 +69,7 @@ impl State {
             d.cmd_begin_render_pass(
                 command_buffer,
                 &RenderPassBeginInfo::builder()
-                    .render_pass(self.window_render_pass)
+                    .render_pass(self.window.render_pass)
                     .framebuffer(frame_buffer)
                     .render_area(*Rect2D::builder().extent(extent))
                     .clear_values(&[
@@ -134,11 +134,11 @@ impl State {
                 rendering_finished_fence,
             )?;
 
-            let _suboptimal = self.window_swapchain.loader.queue_present(
+            let _suboptimal = self.window.swapchain.loader.queue_present(
                 self.vulkan.queue,
                 &PresentInfoKHR::builder()
                     .wait_semaphores(&[rendering_finished_semaphore])
-                    .swapchains(&[self.window_swapchain.handle])
+                    .swapchains(&[self.window.swapchain.handle])
                     .image_indices(&[image_index]),
             )?;
         }

@@ -7,7 +7,7 @@ use vrv::wrap_vulkan::{
     buffers::MappedDeviceBuffer,
     descriptors::{DescriptorRelated, Usage},
     geometry::{Mesh, MeshBuffers},
-    Base,
+    Context,
 };
 
 #[derive(AsStd140)]
@@ -39,14 +39,14 @@ pub struct PerFrameWindow {
 }
 
 impl PerFrameWindow {
-    pub fn new_vec(base: &Base, image_count: u32) -> Result<(Vec<Self>, DescriptorRelated)> {
+    pub fn new_vec(context: &Context, image_count: u32) -> Result<(Vec<Self>, DescriptorRelated)> {
         let debug_mesh = Mesh::load_gltf("examples/simple/untitled.glb")?;
 
         let matrix_buffers: Vec<MappedDeviceBuffer<UniformMatricesWindow>> = (0..image_count)
             .into_iter()
             .map(|index| {
                 let matrix_buffer = MappedDeviceBuffer::new(
-                    base,
+                    context,
                     BufferUsageFlags::UNIFORM_BUFFER,
                     1,
                     format!("WindowMatrices_{}", index),
@@ -65,19 +65,19 @@ impl PerFrameWindow {
             .into_iter()
             .map(|index| {
                 let mut mesh_buffers = MeshBuffers::new(
-                    base,
+                    context,
                     debug_mesh.vertices.len(),
                     debug_mesh.indices.len(),
                     format!("WindowMeshBuffers_{}", index),
                 )?;
-                mesh_buffers.write(base, &debug_mesh)?;
+                mesh_buffers.write(context, &debug_mesh)?;
 
                 Ok(mesh_buffers)
             })
             .collect::<Result<_, Error>>()?;
 
         let (descriptor_related, descriptor_sets) = DescriptorRelated::new_with_sets(
-            base,
+            context,
             [(
                 0,
                 (DescriptorType::UNIFORM_BUFFER, ShaderStageFlags::VERTEX),
@@ -107,14 +107,14 @@ impl PerFrameWindow {
 }
 
 impl PerFrameHMD {
-    pub fn new_vec(base: &Base, image_count: u32) -> Result<(Vec<Self>, DescriptorRelated)> {
+    pub fn new_vec(context: &Context, image_count: u32) -> Result<(Vec<Self>, DescriptorRelated)> {
         let debug_mesh = Mesh::load_gltf("examples/simple/untitled.glb")?;
 
         let matrix_buffers: Vec<MappedDeviceBuffer<UniformMatricesHMD>> = (0..image_count)
             .into_iter()
             .map(|index| {
                 let matrix_buffer = MappedDeviceBuffer::new(
-                    base,
+                    context,
                     BufferUsageFlags::UNIFORM_BUFFER,
                     1,
                     format!("HMDMatrices_{}", index),
@@ -135,19 +135,19 @@ impl PerFrameHMD {
             .into_iter()
             .map(|index| {
                 let mut mesh_buffers = MeshBuffers::new(
-                    base,
+                    context,
                     debug_mesh.vertices.len(),
                     debug_mesh.indices.len(),
                     format!("HMDMeshBuffers_{}", index),
                 )?;
-                mesh_buffers.write(base, &debug_mesh)?;
+                mesh_buffers.write(context, &debug_mesh)?;
 
                 Ok(mesh_buffers)
             })
             .collect::<Result<_, Error>>()?;
 
         let (descriptor_related, descriptor_sets) = DescriptorRelated::new_with_sets(
-            base,
+            context,
             [(
                 0,
                 (DescriptorType::UNIFORM_BUFFER, ShaderStageFlags::VERTEX),
