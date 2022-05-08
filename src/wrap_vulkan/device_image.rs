@@ -1,13 +1,13 @@
 use anyhow::Result;
 use ash::vk::{
     AccessFlags, CommandBuffer, DependencyFlags, DeviceMemory, Extent2D, Extent3D, Format, Image,
-    ImageAspectFlags, ImageCreateInfo, ImageLayout, ImageMemoryBarrier, ImageSubresource,
-    ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView, ImageViewCreateInfo,
-    ImageViewType, MemoryAllocateInfo, MemoryPropertyFlags, PipelineStageFlags, SampleCountFlags,
-    SharingMode, SubmitInfo, QUEUE_FAMILY_IGNORED,
+    ImageAspectFlags, ImageCreateInfo, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange,
+    ImageTiling, ImageType, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType,
+    MemoryAllocateInfo, MemoryPropertyFlags, PipelineStageFlags, SampleCountFlags, SharingMode,
+    QUEUE_FAMILY_IGNORED,
 };
 
-use super::{sync::create_fence, Context};
+use super::Context;
 
 pub struct DeviceImage {
     pub image: Image,

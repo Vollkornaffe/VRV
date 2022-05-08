@@ -1,5 +1,7 @@
 use anyhow::{Error, Result};
-use ash::vk::{BufferUsageFlags, DescriptorSet, DescriptorType, ShaderStageFlags};
+use ash::vk::{
+    BufferUsageFlags, DescriptorSet, DescriptorType, ImageLayout, Sampler, ShaderStageFlags,
+};
 use cgmath::{Matrix4, SquareMatrix};
 use crevice::std140::AsStd140;
 use itertools::izip;
@@ -7,7 +9,7 @@ use vrv::wrap_vulkan::{
     buffers::MappedDeviceBuffer,
     descriptors::{DescriptorRelated, Usage},
     geometry::{Mesh, MeshBuffers},
-    Context,
+    Context, DeviceImage,
 };
 
 #[derive(AsStd140)]
@@ -39,9 +41,14 @@ pub struct PerFrameWindow {
 }
 
 impl PerFrameWindow {
-    pub fn new_vec(context: &Context, image_count: u32) -> Result<(Vec<Self>, DescriptorRelated)> {
-        let debug_mesh = Mesh::load_gltf("examples/simple/untitled.glb")?;
-
+    pub fn new_vec(
+        context: &Context,
+        debug_mesh: &Mesh,
+        debug_texture: &DeviceImage,
+        font_texture: &DeviceImage,
+        sampler: Sampler,
+        image_count: u32,
+    ) -> Result<(Vec<Self>, DescriptorRelated)> {
         let matrix_buffers: Vec<MappedDeviceBuffer<UniformMatricesWindow>> = (0..image_count)
             .into_iter()
             .map(|index| {
@@ -78,14 +85,51 @@ impl PerFrameWindow {
 
         let (descriptor_related, descriptor_sets) = DescriptorRelated::new_with_sets(
             context,
-            [(
-                0,
-                (DescriptorType::UNIFORM_BUFFER, ShaderStageFlags::VERTEX),
-            )]
+            [
+                (
+                    0,
+                    (DescriptorType::UNIFORM_BUFFER, ShaderStageFlags::VERTEX),
+                ),
+                (
+                    1,
+                    (
+                        DescriptorType::COMBINED_IMAGE_SAMPLER,
+                        ShaderStageFlags::FRAGMENT,
+                    ),
+                ),
+                (
+                    2,
+                    (
+                        DescriptorType::COMBINED_IMAGE_SAMPLER,
+                        ShaderStageFlags::FRAGMENT,
+                    ),
+                ),
+            ]
             .into(),
             &matrix_buffers
                 .iter()
-                .map(|buffer| [(0, Usage::Buffer(buffer.handle()))].into())
+                .map(|buffer| {
+                    [
+                        (0, Usage::Buffer(buffer.handle())),
+                        (
+                            1,
+                            Usage::ImageSampler(
+                                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                                debug_texture.view,
+                                sampler,
+                            ),
+                        ),
+                        (
+                            2,
+                            Usage::ImageSampler(
+                                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                                font_texture.view,
+                                sampler,
+                            ),
+                        ),
+                    ]
+                    .into()
+                })
                 .collect::<Vec<_>>(),
             "WindowDescriptorSets".to_string(),
         )?;
@@ -107,9 +151,14 @@ impl PerFrameWindow {
 }
 
 impl PerFrameHMD {
-    pub fn new_vec(context: &Context, image_count: u32) -> Result<(Vec<Self>, DescriptorRelated)> {
-        let debug_mesh = Mesh::load_gltf("examples/simple/untitled.glb")?;
-
+    pub fn new_vec(
+        context: &Context,
+        debug_mesh: &Mesh,
+        debug_texture: &DeviceImage,
+        font_texture: &DeviceImage,
+        sampler: Sampler,
+        image_count: u32,
+    ) -> Result<(Vec<Self>, DescriptorRelated)> {
         let matrix_buffers: Vec<MappedDeviceBuffer<UniformMatricesHMD>> = (0..image_count)
             .into_iter()
             .map(|index| {
@@ -148,14 +197,51 @@ impl PerFrameHMD {
 
         let (descriptor_related, descriptor_sets) = DescriptorRelated::new_with_sets(
             context,
-            [(
-                0,
-                (DescriptorType::UNIFORM_BUFFER, ShaderStageFlags::VERTEX),
-            )]
+            [
+                (
+                    0,
+                    (DescriptorType::UNIFORM_BUFFER, ShaderStageFlags::VERTEX),
+                ),
+                (
+                    1,
+                    (
+                        DescriptorType::COMBINED_IMAGE_SAMPLER,
+                        ShaderStageFlags::FRAGMENT,
+                    ),
+                ),
+                (
+                    2,
+                    (
+                        DescriptorType::COMBINED_IMAGE_SAMPLER,
+                        ShaderStageFlags::FRAGMENT,
+                    ),
+                ),
+            ]
             .into(),
             &matrix_buffers
                 .iter()
-                .map(|buffer| [(0, Usage::Buffer(buffer.handle()))].into())
+                .map(|buffer| {
+                    [
+                        (0, Usage::Buffer(buffer.handle())),
+                        (
+                            1,
+                            Usage::ImageSampler(
+                                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                                debug_texture.view,
+                                sampler,
+                            ),
+                        ),
+                        (
+                            2,
+                            Usage::ImageSampler(
+                                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                                font_texture.view,
+                                sampler,
+                            ),
+                        ),
+                    ]
+                    .into()
+                })
                 .collect::<Vec<_>>(),
             "HMDDescriptorSets".to_string(),
         )?;

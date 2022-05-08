@@ -4,16 +4,20 @@ use itertools::izip;
 use std::{mem::size_of, path::Path};
 
 use ash::vk::{
-    Buffer, BufferUsageFlags, Format, VertexInputAttributeDescription,
-    VertexInputBindingDescription, VertexInputRate,
+    Buffer, BufferUsageFlags, Extent2D, Format, FormatFeatureFlags, ImageAspectFlags, ImageTiling,
+    VertexInputAttributeDescription, VertexInputBindingDescription, VertexInputRate,
 };
 use memoffset::offset_of;
 
-use super::{buffers::MappedDeviceBuffer, Context};
+use crate::context::texture::create_texture;
+
+use super::{buffers::MappedDeviceBuffer, Context, DeviceImage};
 
 #[repr(C)]
 pub struct Vertex {
     pub pos: [f32; 3],
+    pub nor: [f32; 3],
+    pub uv: [f32; 2],
     pub col: [f32; 3],
 }
 
@@ -38,6 +42,18 @@ impl Vertex {
                 .binding(0)
                 .location(1)
                 .format(Format::R32G32B32_SFLOAT)
+                .offset(offset_of!(Self, nor) as u32)
+                .build(),
+            VertexInputAttributeDescription::builder()
+                .binding(0)
+                .location(2)
+                .format(Format::R32G32_SFLOAT)
+                .offset(offset_of!(Self, uv) as u32)
+                .build(),
+            VertexInputAttributeDescription::builder()
+                .binding(0)
+                .location(3)
+                .format(Format::R32G32B32_SFLOAT)
                 .offset(offset_of!(Self, col) as u32)
                 .build(),
         ]
@@ -54,14 +70,20 @@ impl Mesh {
         let vertices = vec![
             Vertex {
                 pos: [0.0, -0.5, 0.0].into(),
+                nor: [0.0, 0.0, 1.0].into(),
+                uv: [0.0, -0.5].into(),
                 col: [1.0, 0.0, 0.0].into(),
             },
             Vertex {
                 pos: [0.5, 0.5, 0.0].into(),
+                nor: [0.0, 0.0, 1.0].into(),
+                uv: [0.5, 0.5].into(),
                 col: [0.0, 1.0, 0.0].into(),
             },
             Vertex {
                 pos: [-0.5, 0.5, 0.0].into(),
+                nor: [0.0, 0.0, 1.0].into(),
+                uv: [-0.5, 0.5].into(),
                 col: [0.0, 0.0, 1.0].into(),
             },
         ];
@@ -69,14 +91,52 @@ impl Mesh {
         Self { vertices, indices }
     }
 
-    pub fn load_gltf<P: AsRef<Path>>(filename: P) -> Result<Self> {
-        let (gltf, buffers, _) = import(filename)?;
+    pub fn load_gltf<P: AsRef<Path>>(
+        context: &Context,
+        filename: P,
+    ) -> Result<(Self, DeviceImage)> {
+        let (gltf, buffers, images) = import(filename)?;
 
         let mut vertices = Vec::new();
         let mut indices = Vec::new();
 
+        let map_format = |format| match format {
+            gltf::image::Format::R8 => Format::R8_SRGB,
+            gltf::image::Format::R8G8 => Format::R8G8_SRGB,
+            gltf::image::Format::R8G8B8 => Format::R8G8B8_SRGB,
+            gltf::image::Format::R8G8B8A8 => Format::R8G8B8A8_SRGB,
+            gltf::image::Format::B8G8R8 => Format::B8G8R8_SRGB,
+            gltf::image::Format::B8G8R8A8 => Format::B8G8R8A8_SRGB,
+            gltf::image::Format::R16 => Format::R16_SFLOAT,
+            gltf::image::Format::R16G16 => Format::R16G16_SFLOAT,
+            gltf::image::Format::R16G16B16 => Format::R16G16B16_SFLOAT,
+            gltf::image::Format::R16G16B16A16 => Format::R16G16B16A16_SFLOAT,
+        };
+
+        let image = images
+            .first()
+            .expect("No image that can be used as texture");
+
+        log::warn!(
+            "Gltf texture has format {:?}, in vulkan {:?}",
+            image.format,
+            map_format(image.format)
+        );
+
+        let texture = create_texture(
+            context,
+            Extent2D {
+                width: image.width,
+                height: image.height,
+            },
+            image.pixels.as_slice(),
+            Format::R8G8B8A8_UNORM,
+            ImageAspectFlags::COLOR,
+            "GltfTexture".to_string(), // TODO
+        )?;
+
         for mesh in gltf.meshes() {
-            log::debug!("Reading mesh: {}", mesh.name().or(Some("NO NAME")).unwrap());
+            log::info!("Reading mesh: {}", mesh.name().or(Some("NO NAME")).unwrap());
 
             for primitive in mesh.primitives() {
                 let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
@@ -89,40 +149,30 @@ impl Mesh {
                         .map(|i| i + vertices.len() as u32),
                 );
 
-                if reader.read_colors(0).is_some() {
-                    vertices.extend(
-                        izip!(
-                            reader.read_positions().expect("didn't find positions"),
-                            reader.read_normals().expect("didn't find normals"),
-                            reader
-                                .read_colors(0)
-                                .expect("didn't find colors")
-                                .into_rgb_f32(), // TODO what is the color set?
-                        )
-                        .map(|(p, _n, c)| Vertex {
-                            // TODO use normal
-                            pos: p.into(),
-                            col: c.into(),
-                        }),
-                    );
-                } else {
-                    log::warn!("Didn't find no colors");
-                    vertices.extend(
-                        izip!(
-                            reader.read_positions().expect("didn't find positions"),
-                            reader.read_normals().expect("didn't find normals"),
-                        )
-                        .map(|(p, _n)| Vertex {
-                            // TODO use normal
-                            pos: p.into(),
-                            col: [0.1, 0.2, 0.8], // blue-ish
-                        }),
-                    );
-                }
+                vertices.extend(
+                    izip!(
+                        reader.read_positions().expect("didn't find positions"),
+                        reader.read_normals().expect("didn't find normals"),
+                        reader
+                            .read_tex_coords(0)
+                            .expect("didn't find tex coords")
+                            .into_f32(),
+                        reader
+                            .read_colors(0)
+                            .expect("didn't find colors")
+                            .into_rgb_f32(), // TODO what is the color set?
+                    )
+                    .map(|(pos, nor, uv, col)| Vertex {
+                        pos: pos.into(),
+                        nor: nor.into(),
+                        uv: uv.into(),
+                        col: col.into(),
+                    }),
+                );
             }
         }
 
-        Ok(Self { vertices, indices })
+        Ok((Self { vertices, indices }, texture))
     }
 }
 

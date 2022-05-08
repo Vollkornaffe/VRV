@@ -1,5 +1,5 @@
 use crate::{
-    wrap_vulkan::{geometry::MeshBuffers, sync::wait_and_reset},
+    wrap_vulkan::{geometry::MeshBuffers, sync::wait_and_reset, DeviceImage},
     Context,
 };
 use anyhow::Result;

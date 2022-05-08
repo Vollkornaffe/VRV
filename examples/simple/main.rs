@@ -6,14 +6,19 @@ use std::{
     },
 };
 
-use ash::vk::{DynamicState, Extent2D, Format, ImageAspectFlags};
+use ash::vk::{
+    DynamicState, Extent2D, Filter, Format, ImageAspectFlags, SamplerAddressMode,
+    SamplerCreateInfo, SamplerMipmapMode,
+};
 use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector3};
 use egui::{AlphaImage, CentralPanel, FontDefinitions, ImageData, RawInput, Style};
 use openxr::{EventDataBuffer, SessionState, ViewConfigurationType};
 use per_frame::PerFrameWindow;
 use simplelog::{Config, SimpleLogger};
 use vk_shader_macros::include_glsl;
-use vrv::wrap_vulkan::{create_pipeline, create_pipeline_layout, pipeline::create_shader_module};
+use vrv::wrap_vulkan::{
+    create_pipeline, create_pipeline_layout, geometry::Mesh, pipeline::create_shader_module,
+};
 use vrv::{context::texture::create_texture, Context};
 use winit::{
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
@@ -30,7 +35,7 @@ mod camera;
 mod per_frame;
 
 fn main() {
-    let _ = SimpleLogger::init(log::LevelFilter::Info, Config::default());
+    let _ = SimpleLogger::init(log::LevelFilter::Warn, Config::default());
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
@@ -45,6 +50,9 @@ fn main() {
             ui.label("Hello egui!");
         });
     });
+
+    let (debug_mesh, debug_texture) =
+        Mesh::load_gltf(&context.vulkan, "examples/simple/untitled.glb").unwrap();
 
     let font_texture = egui_output
         .textures_delta
@@ -73,13 +81,40 @@ fn main() {
         .next()
         .unwrap();
 
-    return;
+    let sampler = unsafe {
+        context.vulkan.device.create_sampler(
+            &SamplerCreateInfo::builder()
+                .mag_filter(Filter::NEAREST)
+                .min_filter(Filter::NEAREST)
+                .mipmap_mode(SamplerMipmapMode::NEAREST)
+                .address_mode_u(SamplerAddressMode::REPEAT)
+                .address_mode_v(SamplerAddressMode::REPEAT)
+                .address_mode_w(SamplerAddressMode::REPEAT)
+                .anisotropy_enable(false),
+            None,
+        )
+    }
+    .unwrap();
 
-    let (hmd_per_frame_buffers, hmd_descriptor_related) =
-        PerFrameHMD::new_vec(&context.vulkan, context.get_image_count_hmd()).unwrap();
+    let (hmd_per_frame_buffers, hmd_descriptor_related) = PerFrameHMD::new_vec(
+        &context.vulkan,
+        &debug_mesh,
+        &debug_texture,
+        &font_texture,
+        sampler,
+        context.get_image_count_hmd(),
+    )
+    .unwrap();
 
-    let (window_per_frame_buffers, window_descriptor_related) =
-        PerFrameWindow::new_vec(&context.vulkan, context.get_image_count_window()).unwrap();
+    let (window_per_frame_buffers, window_descriptor_related) = PerFrameWindow::new_vec(
+        &context.vulkan,
+        &debug_mesh,
+        &debug_texture,
+        &font_texture,
+        sampler,
+        context.get_image_count_window(),
+    )
+    .unwrap();
 
     const HMD_VERT: &[u32] = include_glsl!("shaders/example_hmd.vert");
     const HMD_FRAG: &[u32] = include_glsl!("shaders/example_hmd.frag");
