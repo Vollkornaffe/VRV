@@ -88,7 +88,6 @@ fn main() {
             mesh.vertices.len(),
         );
     }
-    return;
 
     let sampler = unsafe {
         context.vulkan.device.create_sampler(
@@ -105,9 +104,8 @@ fn main() {
     }
     .unwrap();
 
-    let (hmd_per_frame_buffers, hmd_descriptor_related) = PerFrameHMD::new_vec(
+    let (mut hmd_per_frame_buffers, hmd_descriptor_related) = PerFrameHMD::new_vec(
         &context.vulkan,
-        &debug_mesh,
         &debug_texture,
         &egui_texture,
         sampler,
@@ -115,9 +113,8 @@ fn main() {
     )
     .unwrap();
 
-    let (window_per_frame_buffers, window_descriptor_related) = PerFrameWindow::new_vec(
+    let (mut window_per_frame_buffers, window_descriptor_related) = PerFrameWindow::new_vec(
         &context.vulkan,
-        &debug_mesh,
         &debug_texture,
         &egui_texture,
         sampler,
@@ -287,7 +284,19 @@ fn main() {
             let hmd_pre_render_info = context.pre_render_hmd().unwrap();
             if hmd_pre_render_info.image_index.is_some() {
                 let image_index = hmd_pre_render_info.image_index.unwrap();
-                let hmd_current_frame = &hmd_per_frame_buffers[image_index as usize];
+                log::info!("Rendering to HMD swapchain image nr. {}", image_index);
+                let hmd_current_frame = &mut hmd_per_frame_buffers[image_index as usize];
+
+                hmd_current_frame
+                    .mesh_buffers
+                    .write(
+                        &context.vulkan,
+                        &Mesh {
+                            vertices: debug_mesh.vertices.clone(),
+                            indices: debug_mesh.indices.clone(),
+                        },
+                    )
+                    .unwrap();
 
                 context
                     .record_hmd(
@@ -314,8 +323,12 @@ fn main() {
             }
 
             let window_pre_render_info = context.pre_render_window().unwrap();
+            log::info!(
+                "Rendering to Window swapchain image nr. {}",
+                window_pre_render_info.image_index
+            );
             let window_current_frame =
-                &window_per_frame_buffers[window_pre_render_info.image_index as usize];
+                &mut window_per_frame_buffers[window_pre_render_info.image_index as usize];
 
             spherical_coords.update(
                 &pressed_keys
@@ -345,6 +358,17 @@ fn main() {
                         tmp
                     },
                 }]);
+
+            window_current_frame
+                .mesh_buffers
+                .write(
+                    &context.vulkan,
+                    &Mesh {
+                        vertices: debug_mesh.vertices.clone(),
+                        indices: debug_mesh.indices.clone(),
+                    },
+                )
+                .unwrap();
 
             context
                 .render_window(

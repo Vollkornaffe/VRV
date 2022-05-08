@@ -43,7 +43,6 @@ pub struct PerFrameWindow {
 impl PerFrameWindow {
     pub fn new_vec(
         context: &Context,
-        debug_mesh: &Mesh,
         debug_texture: &DeviceImage,
         egui_texture: &DeviceImage,
         sampler: Sampler,
@@ -52,35 +51,18 @@ impl PerFrameWindow {
         let matrix_buffers: Vec<MappedDeviceBuffer<UniformMatricesWindow>> = (0..image_count)
             .into_iter()
             .map(|index| {
-                let matrix_buffer = MappedDeviceBuffer::new(
+                MappedDeviceBuffer::new(
                     context,
                     BufferUsageFlags::UNIFORM_BUFFER,
                     1,
                     format!("WindowMatrices_{}", index),
-                )?;
-                matrix_buffer.write(&[UniformMatricesWindow {
-                    model: Matrix4::identity(),
-                    view: Matrix4::identity(),
-                    proj: Matrix4::identity(),
-                }]);
-
-                Ok(matrix_buffer)
+                )
             })
             .collect::<Result<_, Error>>()?;
 
         let mesh_buffers_s: Vec<MeshBuffers> = (0..image_count)
             .into_iter()
-            .map(|index| {
-                let mut mesh_buffers = MeshBuffers::new(
-                    context,
-                    debug_mesh.vertices.len(),
-                    debug_mesh.indices.len(),
-                    format!("WindowMeshBuffers_{}", index),
-                )?;
-                mesh_buffers.write(context, &debug_mesh)?;
-
-                Ok(mesh_buffers)
-            })
+            .map(|index| MeshBuffers::new(context, 1, 1, format!("WindowMeshBuffers_{}", index)))
             .collect::<Result<_, Error>>()?;
 
         let (descriptor_related, descriptor_sets) = DescriptorRelated::new_with_sets(
@@ -133,6 +115,7 @@ impl PerFrameWindow {
                 .collect::<Vec<_>>(),
             "WindowDescriptorSets".to_string(),
         )?;
+
         Ok((
             izip!(
                 matrix_buffers.into_iter(),
@@ -153,7 +136,6 @@ impl PerFrameWindow {
 impl PerFrameHMD {
     pub fn new_vec(
         context: &Context,
-        debug_mesh: &Mesh,
         debug_texture: &DeviceImage,
         egui_texture: &DeviceImage,
         sampler: Sampler,
@@ -162,37 +144,18 @@ impl PerFrameHMD {
         let matrix_buffers: Vec<MappedDeviceBuffer<UniformMatricesHMD>> = (0..image_count)
             .into_iter()
             .map(|index| {
-                let matrix_buffer = MappedDeviceBuffer::new(
+                MappedDeviceBuffer::new(
                     context,
                     BufferUsageFlags::UNIFORM_BUFFER,
                     1,
                     format!("HMDMatrices_{}", index),
-                )?;
-                matrix_buffer.write(&[UniformMatricesHMD {
-                    model: Matrix4::identity(),
-                    view_left: Matrix4::identity(),
-                    view_right: Matrix4::identity(),
-                    proj_left: Matrix4::identity(),
-                    proj_right: Matrix4::identity(),
-                }]);
-
-                Ok(matrix_buffer)
+                )
             })
             .collect::<Result<_, Error>>()?;
 
         let mesh_buffers_s: Vec<MeshBuffers> = (0..image_count)
             .into_iter()
-            .map(|index| {
-                let mut mesh_buffers = MeshBuffers::new(
-                    context,
-                    debug_mesh.vertices.len(),
-                    debug_mesh.indices.len(),
-                    format!("HMDMeshBuffers_{}", index),
-                )?;
-                mesh_buffers.write(context, &debug_mesh)?;
-
-                Ok(mesh_buffers)
-            })
+            .map(|index| MeshBuffers::new(context, 1, 1, format!("HMDMeshBuffers_{}", index)))
             .collect::<Result<_, Error>>()?;
 
         let (descriptor_related, descriptor_sets) = DescriptorRelated::new_with_sets(

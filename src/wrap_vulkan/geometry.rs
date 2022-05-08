@@ -14,6 +14,7 @@ use crate::context::texture::create_texture;
 use super::{buffers::MappedDeviceBuffer, Context, DeviceImage};
 
 #[repr(C)]
+#[derive(Clone, Copy, Debug)]
 pub struct Vertex {
     pub pos: [f32; 3],
     pub nor: [f32; 3],
@@ -60,6 +61,7 @@ impl Vertex {
     }
 }
 
+#[derive(Debug)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
