@@ -11,7 +11,7 @@ use ash::vk::{
     SamplerCreateInfo, SamplerMipmapMode,
 };
 use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector3};
-use egui::{AlphaImage, CentralPanel, FontDefinitions, ImageData, RawInput, Style};
+use egui::{AlphaImage, CentralPanel, ClippedMesh, FontDefinitions, ImageData, RawInput, Style};
 use openxr::{EventDataBuffer, SessionState, ViewConfigurationType};
 use per_frame::PerFrameWindow;
 use simplelog::{Config, SimpleLogger};
@@ -54,11 +54,11 @@ fn main() {
     let (debug_mesh, debug_texture) =
         Mesh::load_gltf(&context.vulkan, "examples/simple/untitled.glb").unwrap();
 
-    let font_texture = egui_output
+    let egui_texture = egui_output
         .textures_delta
         .set
         .iter()
-        .map(|(id, delta)| match &delta.image {
+        .map(|(_id, delta)| match &delta.image {
             ImageData::Color(_) => {
                 panic!("Got a color image for font")
             }
@@ -81,6 +81,15 @@ fn main() {
         .next()
         .unwrap();
 
+    for ClippedMesh(_, mesh) in egui.tessellate(egui_output.shapes) {
+        println!(
+            "#vert: {}, #indi: {}",
+            mesh.indices.len(),
+            mesh.vertices.len(),
+        );
+    }
+    return;
+
     let sampler = unsafe {
         context.vulkan.device.create_sampler(
             &SamplerCreateInfo::builder()
@@ -100,7 +109,7 @@ fn main() {
         &context.vulkan,
         &debug_mesh,
         &debug_texture,
-        &font_texture,
+        &egui_texture,
         sampler,
         context.get_image_count_hmd(),
     )
@@ -110,7 +119,7 @@ fn main() {
         &context.vulkan,
         &debug_mesh,
         &debug_texture,
-        &font_texture,
+        &egui_texture,
         sampler,
         context.get_image_count_window(),
     )

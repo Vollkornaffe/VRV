@@ -45,7 +45,7 @@ impl PerFrameWindow {
         context: &Context,
         debug_mesh: &Mesh,
         debug_texture: &DeviceImage,
-        font_texture: &DeviceImage,
+        egui_texture: &DeviceImage,
         sampler: Sampler,
         image_count: u32,
     ) -> Result<(Vec<Self>, DescriptorRelated)> {
@@ -123,7 +123,7 @@ impl PerFrameWindow {
                             2,
                             Usage::ImageSampler(
                                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-                                font_texture.view,
+                                egui_texture.view,
                                 sampler,
                             ),
                         ),
@@ -155,7 +155,7 @@ impl PerFrameHMD {
         context: &Context,
         debug_mesh: &Mesh,
         debug_texture: &DeviceImage,
-        font_texture: &DeviceImage,
+        egui_texture: &DeviceImage,
         sampler: Sampler,
         image_count: u32,
     ) -> Result<(Vec<Self>, DescriptorRelated)> {
@@ -235,7 +235,7 @@ impl PerFrameHMD {
                             2,
                             Usage::ImageSampler(
                                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-                                font_texture.view,
+                                egui_texture.view,
                                 sampler,
                             ),
                         ),
