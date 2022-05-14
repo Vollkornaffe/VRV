@@ -43,8 +43,8 @@ impl From<VirtualKeyCode> for KeyMap {
 impl SphereCoords {
     pub fn new() -> Self {
         Self {
-            phi: 0.0,
-            theta: std::f32::consts::FRAC_PI_8,
+            phi: std::f32::consts::FRAC_PI_2,
+            theta: std::f32::consts::FRAC_PI_4,
             radius: 4.0,
             speed: 2.0,
             check: Instant::now(),

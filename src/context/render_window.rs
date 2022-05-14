@@ -74,7 +74,9 @@ impl Context {
                     .render_area(*Rect2D::builder().extent(extent))
                     .clear_values(&[
                         ClearValue {
-                            color: ClearColorValue::default(),
+                            color: ClearColorValue {
+                                float32: [0.1, 0.1, 0.1, 1.0],
+                            },
                         },
                         ClearValue {
                             depth_stencil: ClearDepthStencilValue {

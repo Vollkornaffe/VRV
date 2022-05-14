@@ -11,13 +11,16 @@ use ash::vk::{
     SamplerCreateInfo, SamplerMipmapMode,
 };
 use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector3};
-use egui::{AlphaImage, CentralPanel, ClippedMesh, FontDefinitions, ImageData, RawInput, Style};
+use egui::{
+    AlphaImage, CentralPanel, ClippedMesh, FontDefinitions, FontId, ImageData, RawInput, Rgba,
+    Style,
+};
 use openxr::{EventDataBuffer, SessionState, ViewConfigurationType};
 use per_frame::PerFrameWindow;
 use simplelog::{Config, SimpleLogger};
 use vk_shader_macros::include_glsl;
 use vrv::wrap_vulkan::{
-    create_pipeline, create_pipeline_layout, geometry::Mesh, pipeline::create_shader_module,
+    create_pipeline, create_pipeline_layout, geometry::Mesh, pipeline::create_shader_module, Vertex,
 };
 use vrv::{context::texture::create_texture, Context};
 use winit::{
@@ -44,7 +47,13 @@ fn main() {
 
     let egui = egui::Context::default();
     egui.set_fonts(FontDefinitions::default());
-    egui.set_style(Style::default());
+    egui.set_style({
+        use egui::FontFamily::*;
+        use egui::TextStyle::*;
+        let mut style = Style::default();
+        style.text_styles = [(Body, FontId::new(60.0, Proportional))].into();
+        style
+    });
     let egui_output = egui.run(RawInput::default(), |ctx| {
         CentralPanel::default().show(&ctx, |ui| {
             ui.label("Hello egui!");
@@ -81,13 +90,22 @@ fn main() {
         .next()
         .unwrap();
 
-    for ClippedMesh(_, mesh) in egui.tessellate(egui_output.shapes) {
-        println!(
-            "#vert: {}, #indi: {}",
-            mesh.indices.len(),
-            mesh.vertices.len(),
-        );
-    }
+    let egui_mesh = egui.tessellate(egui_output.shapes).iter().fold(
+        Mesh::default(),
+        |mut mesh, ClippedMesh(_, egui_mesh)| {
+            let index_offset = mesh.vertices.len() as u32;
+            mesh.vertices
+                .extend(egui_mesh.vertices.iter().map(|v| Vertex {
+                    pos: [v.pos.x * 0.1, -v.pos.y * 0.1, 0.0],
+                    nor: [0.0, 0.0, 1.0],
+                    uv: [v.uv.x, v.uv.y],
+                    col: Rgba::from(v.color).to_array(),
+                }));
+            mesh.indices
+                .extend(egui_mesh.indices.iter().map(|&i| i + index_offset));
+            mesh
+        },
+    );
 
     let sampler = unsafe {
         context.vulkan.device.create_sampler(
@@ -364,8 +382,8 @@ fn main() {
                 .write(
                     &context.vulkan,
                     &Mesh {
-                        vertices: debug_mesh.vertices.clone(),
-                        indices: debug_mesh.indices.clone(),
+                        vertices: egui_mesh.vertices.clone(),
+                        indices: egui_mesh.indices.clone(),
                     },
                 )
                 .unwrap();

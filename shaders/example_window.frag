@@ -7,7 +7,7 @@ layout(binding = 2) uniform sampler2D fontSampler;
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec2 inUV;
-layout(location = 3) in vec3 inColor;
+layout(location = 3) in vec4 inColor;
 
 layout(location = 0) out vec4 outColor;
 
@@ -21,5 +21,8 @@ void main() {
     float ambient = 0.3;
     float diffuse = clamp(dot(inNormal, toLight) /  distToLight, 0.0, 1.0);
     float light = clamp(ambient + diffuse, 0.0, 1.0);
-    outColor = light * texture(debugSampler, inUV);
+    //outColor = light * texture(fontSampler, inUV);
+
+    // for egui rendering
+    outColor = inColor * vec4(1.0, 1.0, 1.0, texture(fontSampler, inUV).x);
 }

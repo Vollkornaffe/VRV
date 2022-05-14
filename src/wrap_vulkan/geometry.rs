@@ -19,7 +19,7 @@ pub struct Vertex {
     pub pos: [f32; 3],
     pub nor: [f32; 3],
     pub uv: [f32; 2],
-    pub col: [f32; 3],
+    pub col: [f32; 4],
 }
 
 impl Vertex {
@@ -54,14 +54,14 @@ impl Vertex {
             VertexInputAttributeDescription::builder()
                 .binding(0)
                 .location(3)
-                .format(Format::R32G32B32_SFLOAT)
+                .format(Format::R32G32B32A32_SFLOAT)
                 .offset(offset_of!(Self, col) as u32)
                 .build(),
         ]
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
@@ -74,19 +74,19 @@ impl Mesh {
                 pos: [0.0, -0.5, 0.0].into(),
                 nor: [0.0, 0.0, 1.0].into(),
                 uv: [0.0, -0.5].into(),
-                col: [1.0, 0.0, 0.0].into(),
+                col: [1.0, 0.0, 0.0, 1.0].into(),
             },
             Vertex {
                 pos: [0.5, 0.5, 0.0].into(),
                 nor: [0.0, 0.0, 1.0].into(),
                 uv: [0.5, 0.5].into(),
-                col: [0.0, 1.0, 0.0].into(),
+                col: [0.0, 1.0, 0.0, 1.0].into(),
             },
             Vertex {
                 pos: [-0.5, 0.5, 0.0].into(),
                 nor: [0.0, 0.0, 1.0].into(),
                 uv: [-0.5, 0.5].into(),
-                col: [0.0, 0.0, 1.0].into(),
+                col: [0.0, 0.0, 1.0, 1.0].into(),
             },
         ];
         let indices = vec![0, 1, 2];
@@ -162,7 +162,7 @@ impl Mesh {
                         reader
                             .read_colors(0)
                             .expect("didn't find colors")
-                            .into_rgb_f32(), // TODO what is the color set?
+                            .into_rgba_f32(), // TODO what is the color set?
                     )
                     .map(|(pos, nor, uv, col)| Vertex {
                         pos: pos.into(),
