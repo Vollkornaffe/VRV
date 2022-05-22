@@ -4,10 +4,10 @@ use crate::{
 };
 use anyhow::Result;
 use ash::vk::{
-    ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
-    CommandBufferResetFlags, DescriptorSet, IndexType, Offset2D, Pipeline, PipelineBindPoint,
-    PipelineLayout, PipelineStageFlags, PresentInfoKHR, Rect2D, RenderPassBeginInfo, SubmitInfo,
-    SubpassContents, Viewport,
+    ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBuffer, CommandBufferBeginInfo,
+    CommandBufferResetFlags, DescriptorSet, Fence, IndexType, Offset2D, Pipeline,
+    PipelineBindPoint, PipelineLayout, PipelineStageFlags, PresentInfoKHR, Rect2D,
+    RenderPassBeginInfo, Semaphore, SubmitInfo, SubpassContents, Viewport,
 };
 
 use super::PreRenderInfoWindow;
@@ -43,6 +43,9 @@ impl Context {
         pipeline: Pipeline,
         mesh: &MeshBuffers,
         descriptor_set: DescriptorSet,
+        command_buffer: CommandBuffer,
+        rendering_finished_fence: Fence,
+        rendering_finished_semaphore: Semaphore,
     ) -> Result<()> {
         let PreRenderInfoWindow {
             image_index,
@@ -50,10 +53,6 @@ impl Context {
         } = pre_render_info;
 
         // get the other stuff now that we know the index
-        let rendering_finished_semaphore =
-            self.window.semaphores_rendering_finished[image_index as usize];
-        let rendering_finished_fence = self.window.fences_rendering_finished[image_index as usize];
-        let command_buffer = self.window.command_buffers[image_index as usize];
         let frame_buffer = self.window.swapchain.elements[image_index as usize].frame_buffer;
 
         // waite before resetting cmd buffer

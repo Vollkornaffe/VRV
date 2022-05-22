@@ -4,9 +4,9 @@ use crate::{
 };
 use anyhow::{Error, Result};
 use ash::vk::{
-    ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBufferBeginInfo,
-    CommandBufferResetFlags, DescriptorSet, IndexType, Pipeline, PipelineBindPoint, PipelineLayout,
-    Rect2D, RenderPassBeginInfo, SubmitInfo, SubpassContents,
+    ClearColorValue, ClearDepthStencilValue, ClearValue, CommandBuffer, CommandBufferBeginInfo,
+    CommandBufferResetFlags, DescriptorSet, Fence, IndexType, Pipeline, PipelineBindPoint,
+    PipelineLayout, Rect2D, RenderPassBeginInfo, SubmitInfo, SubpassContents,
 };
 
 use openxr::{
@@ -48,6 +48,8 @@ impl Context {
         pipeline: Pipeline,
         mesh: &MeshBuffers,
         descriptor_set: DescriptorSet,
+        command_buffer: CommandBuffer,
+        rendering_finished_fence: Fence,
     ) -> Result<()> {
         let PreRenderInfoHMD { image_index, .. } = pre_render_info;
 
@@ -60,8 +62,6 @@ impl Context {
             .swapchain
             .wait_image(Duration::INFINITE)?;
 
-        let rendering_finished_fence = self.hmd.fences_rendering_finished[image_index as usize];
-        let command_buffer = self.hmd.command_buffers[image_index as usize];
         let frame_buffer = self.hmd.swapchain.elements[image_index as usize].frame_buffer;
         let extent = self.hmd.swapchain.extent;
 
@@ -115,6 +115,8 @@ impl Context {
         &mut self,
         pre_render_info: PreRenderInfoHMD,
         views: &[View; 2],
+        command_buffer: CommandBuffer,
+        rendering_finished_fence: Fence,
     ) -> Result<()> {
         let PreRenderInfoHMD {
             image_index,
@@ -122,8 +124,6 @@ impl Context {
         } = pre_render_info;
 
         let image_index = image_index.ok_or(Error::msg("Shouldn't render, says OpenXR"))?;
-        let command_buffer = self.hmd.command_buffers[image_index as usize];
-        let rendering_finished_fence = self.hmd.fences_rendering_finished[image_index as usize];
 
         unsafe {
             self.vulkan.device.queue_submit(

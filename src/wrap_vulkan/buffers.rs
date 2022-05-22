@@ -8,6 +8,7 @@ use ash::vk::{
 
 use super::Context;
 
+#[derive(Debug)]
 pub struct DeviceBuffer<T> {
     pub handle: Buffer,
     pub memory: DeviceMemory,
@@ -15,6 +16,7 @@ pub struct DeviceBuffer<T> {
     pub _phantom: PhantomData<T>, // to store the type that is stored
 }
 
+#[derive(Debug)]
 pub struct MappedDeviceBuffer<T> {
     buffer: DeviceBuffer<T>,
     mapped_ptr: *mut T,

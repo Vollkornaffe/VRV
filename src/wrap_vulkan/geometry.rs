@@ -11,6 +11,7 @@ use memoffset::offset_of;
 
 use super::{buffers::MappedDeviceBuffer, Context};
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct Vertex {
     pub pos: [f32; 3],
@@ -126,6 +127,7 @@ impl Mesh {
     }
 }
 
+#[derive(Debug)]
 pub struct MeshBuffers {
     pub vertex: MappedDeviceBuffer<Vertex>,
     pub index: MappedDeviceBuffer<u32>,

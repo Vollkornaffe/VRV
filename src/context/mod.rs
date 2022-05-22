@@ -28,10 +28,6 @@ pub struct ContextHMD {
 
     pub render_pass: RenderPass,
     pub swapchain: SwapchainHMD,
-
-    // these are indexed by the result of acquiring
-    pub command_buffers: Vec<CommandBuffer>,
-    pub fences_rendering_finished: Vec<Fence>,
 }
 
 pub struct ContextWindow {
@@ -42,11 +38,6 @@ pub struct ContextWindow {
 
     pub render_pass: RenderPass,
     pub swapchain: SwapchainWindow,
-
-    // these are indexed by the result of acquiring
-    pub command_buffers: Vec<CommandBuffer>,
-    pub semaphores_rendering_finished: Vec<Semaphore>,
-    pub fences_rendering_finished: Vec<Fence>,
 }
 
 pub struct Context {
@@ -70,13 +61,6 @@ impl Drop for Context {
             for &s in &self.window.semaphores_image_acquired {
                 self.vulkan.device.destroy_semaphore(s, None);
             }
-            for &s in &self.window.semaphores_rendering_finished {
-                self.vulkan.device.destroy_semaphore(s, None);
-            }
-            for &f in &self.window.fences_rendering_finished {
-                self.vulkan.device.destroy_fence(f, None);
-            }
-
             self.vulkan
                 .device
                 .destroy_render_pass(self.window.render_pass, None);
@@ -135,18 +119,6 @@ impl Context {
                 frame_stream,
                 render_pass,
                 swapchain,
-                command_buffers: vulkan
-                    .alloc_command_buffers(image_count, "HMDCommandBuffers".to_string())?,
-                fences_rendering_finished: (0..image_count)
-                    .into_iter()
-                    .map(|index| {
-                        Ok(create_fence(
-                            &vulkan,
-                            true, // start in signaled state
-                            format!("HMDFenceRenderingFinished_{}", index),
-                        )?)
-                    })
-                    .collect::<Result<_, Error>>()?,
             }
         };
 
@@ -173,27 +145,6 @@ impl Context {
                         height: window.inner_size().height,
                     },
                 )?,
-                command_buffers: vulkan
-                    .alloc_command_buffers(image_count, "WindowCommandBuffers".to_string())?,
-                semaphores_rendering_finished: (0..image_count)
-                    .into_iter()
-                    .map(|index| {
-                        Ok(create_semaphore(
-                            &vulkan,
-                            format!("WindowSemaphoreRenderingFinished_{}", index),
-                        )?)
-                    })
-                    .collect::<Result<_, Error>>()?,
-                fences_rendering_finished: (0..image_count)
-                    .into_iter()
-                    .map(|index| {
-                        Ok(create_fence(
-                            &vulkan,
-                            true, // start in signaled state
-                            format!("WindowFenceRenderingFinished_{}", index),
-                        )?)
-                    })
-                    .collect::<Result<_, Error>>()?,
             }
         };
 
