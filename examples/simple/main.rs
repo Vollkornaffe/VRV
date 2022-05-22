@@ -52,7 +52,7 @@ where
     UniformMatrices: std::fmt::Debug,
 {
     fn create_front_and_back(context: &Context, prefix: String) -> Result<[Self; 2]> {
-        Ok(["Front, Back"]
+        Ok(["Front", "Back"]
             .iter()
             .map(|front_or_back| {
                 let buffer = Buffer::<UniformMatrices>::new(
