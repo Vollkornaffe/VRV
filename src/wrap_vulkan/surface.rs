@@ -73,6 +73,6 @@ impl SurfaceRelated {
     }
 
     pub fn get_detail(&self, context: &Context) -> Result<Detail> {
-        Self::detail(&self.loader, *context.physical_device, self.surface)
+        Self::detail(&self.loader, context.physical_device, self.surface)
     }
 }

@@ -25,10 +25,10 @@ use super::Debug;
 use super::{surface::Detail, SurfaceRelated};
 
 pub struct Context {
-    pub entry: ManuallyDrop<Entry>,
-    pub instance: ManuallyDrop<Instance>,
-    pub physical_device: ManuallyDrop<PhysicalDevice>,
-    pub device: ManuallyDrop<Device>,
+    pub entry: Entry,
+    pub instance: Instance,
+    pub physical_device: PhysicalDevice,
+    pub device: Device,
 
     #[cfg(feature = "validation_vulkan")]
     pub debug: ManuallyDrop<Debug>,
@@ -44,12 +44,10 @@ impl Drop for Context {
     fn drop(&mut self) {
         unsafe {
             ManuallyDrop::drop(&mut self.window_surface_related);
-            ManuallyDrop::drop(&mut self.device);
-            ManuallyDrop::drop(&mut self.physical_device);
             #[cfg(feature = "validation_vulkan")]
             ManuallyDrop::drop(&mut self.debug);
-            ManuallyDrop::drop(&mut self.instance);
-            ManuallyDrop::drop(&mut self.entry);
+            self.device.destroy_device(None);
+            self.instance.destroy_instance(None);
         }
     }
 }
@@ -136,13 +134,8 @@ impl Context {
             .iter()
             .enumerate()
         {
-            log::info!("Available physical device nr. {}: {:?}", i, unsafe {
-                CStr::from_ptr(
-                    instance
-                        .get_physical_device_properties(*physical_device)
-                        .device_name
-                        .as_ptr(),
-                )
+            log::info!("Available physical device nr. {}: {:#?}", i, unsafe {
+                instance.get_physical_device_properties(*physical_device)
             });
         }
 
@@ -251,10 +244,10 @@ impl Context {
         let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
 
         Ok(Self {
-            entry: ManuallyDrop::new(entry),
-            instance: ManuallyDrop::new(instance),
-            physical_device: ManuallyDrop::new(physical_device),
-            device: ManuallyDrop::new(device),
+            entry,
+            instance,
+            physical_device,
+            device,
 
             #[cfg(feature = "validation_vulkan")]
             debug: ManuallyDrop::new(debug),
@@ -305,7 +298,7 @@ impl Context {
             .find_map(|&format| {
                 let properties = unsafe {
                     self.instance
-                        .get_physical_device_format_properties(*self.physical_device, format)
+                        .get_physical_device_format_properties(self.physical_device, format)
                 };
 
                 if match tiling {
@@ -356,7 +349,7 @@ impl Context {
     ) -> Result<u32> {
         let memory_properties = unsafe {
             self.instance
-                .get_physical_device_memory_properties(*self.physical_device)
+                .get_physical_device_memory_properties(self.physical_device)
         };
         (0..memory_properties.memory_type_count)
             .into_iter()
