@@ -13,7 +13,8 @@ use ash::{
         CommandBufferAllocateInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags,
         CommandPoolCreateInfo, DeviceCreateInfo, DeviceQueueCreateInfo, Extent2D, Format,
         FormatFeatureFlags, Handle, ImageTiling, InstanceCreateInfo, MemoryPropertyFlags,
-        PhysicalDevice, PhysicalDeviceMultiviewFeatures, Queue, QueueFlags,
+        PhysicalDevice, PhysicalDeviceBufferDeviceAddressFeatures, PhysicalDeviceFeatures2,
+        PhysicalDeviceMultiviewFeatures, Queue, QueueFlags, TRUE,
     },
     Device, Entry, Instance,
 };
@@ -170,6 +171,18 @@ impl Context {
             bail!("Vulkan phyiscal device doesn't support target version");
         }
 
+        // check for buffer_device_address support
+        let mut physical_device_buffer_device_address_features =
+            PhysicalDeviceBufferDeviceAddressFeatures::default();
+        let mut physical_device_features2 = PhysicalDeviceFeatures2::builder()
+            .push_next(&mut physical_device_buffer_device_address_features);
+        unsafe {
+            instance.get_physical_device_features2(physical_device, &mut physical_device_features2)
+        };
+        if physical_device_buffer_device_address_features.buffer_device_address != TRUE {
+            bail!("Vulkan phyiscal device doesn't support VkPhysicalDeviceBufferDeviceAddressFeaturesKHR::bufferDeviceAddress");
+        }
+
         let surface_related = SurfaceRelated::new(&entry, &instance, window)?;
 
         let queue_family_index =
@@ -204,6 +217,8 @@ impl Context {
 
         log::trace!("Using queue nr. {}", queue_family_index);
 
+        let mut physical_device_multiview_features =
+            PhysicalDeviceMultiviewFeatures::builder().multiview(true);
         let device = unsafe {
             wrap_openxr.get_vulkan_device(
                 &entry,
@@ -225,7 +240,8 @@ impl Context {
                     } else {
                         &[]
                     })
-                    .push_next(&mut PhysicalDeviceMultiviewFeatures::builder().multiview(true)),
+                    .push_next(&mut physical_device_multiview_features)
+                    .push_next(&mut physical_device_buffer_device_address_features),
             )
         }?;
 
