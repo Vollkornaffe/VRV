@@ -9,7 +9,7 @@ edition = "2021"
 log = "0.4.14"
 winit = "0.26.1"
 openxr = { version = "0.16.0", features = ["static"] }
-ash = { version = "0.37.0+1.3.209", features = ["loaded", "debug"] }
+ash = { version = "0.37", features = ["loaded", "debug"] }
 ash-window = "0.10.0"
 anyhow = { version = "1.0.53", features = ["backtrace"] }
 memoffset = "0.6.5"
