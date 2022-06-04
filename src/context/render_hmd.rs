@@ -140,29 +140,31 @@ impl Context {
         self.hmd.frame_stream.end(
             frame_state.predicted_display_time,
             EnvironmentBlendMode::OPAQUE,
-            &[&CompositionLayerProjection::new().space(&self.stage).views(
-                &views
-                    .iter()
-                    .enumerate()
-                    .map(|(i, view)| {
-                        CompositionLayerProjectionView::new()
-                            .pose(view.pose)
-                            .fov(view.fov)
-                            .sub_image(
-                                SwapchainSubImage::new()
-                                    .swapchain(&self.hmd.swapchain.swapchain)
-                                    .image_array_index(i as u32)
-                                    .image_rect(Rect2Di {
-                                        offset: Offset2Di::default(),
-                                        extent: Extent2Di {
-                                            width: self.hmd.swapchain.extent.width as i32,
-                                            height: self.hmd.swapchain.extent.height as i32,
-                                        },
-                                    }),
-                            )
-                    })
-                    .collect::<Vec<_>>(),
-            )],
+            &[&CompositionLayerProjection::new()
+                .space(&self.hmd.stage)
+                .views(
+                    &views
+                        .iter()
+                        .enumerate()
+                        .map(|(i, view)| {
+                            CompositionLayerProjectionView::new()
+                                .pose(view.pose)
+                                .fov(view.fov)
+                                .sub_image(
+                                    SwapchainSubImage::new()
+                                        .swapchain(&self.hmd.swapchain.swapchain)
+                                        .image_array_index(i as u32)
+                                        .image_rect(Rect2Di {
+                                            offset: Offset2Di::default(),
+                                            extent: Extent2Di {
+                                                width: self.hmd.swapchain.extent.width as i32,
+                                                height: self.hmd.swapchain.extent.height as i32,
+                                            },
+                                        }),
+                                )
+                        })
+                        .collect::<Vec<_>>(),
+                )],
         )?;
 
         Ok(())

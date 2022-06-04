@@ -239,7 +239,7 @@ fn main() {
 
                 *control_flow = ControlFlow::Exit;
 
-                match context.session.request_exit() {
+                match context.hmd.session.request_exit() {
                     Ok(()) => {}
                     Err(openxr::sys::Result::ERROR_SESSION_NOT_RUNNING) => {}
                     Err(e) => panic!("{}", e),
@@ -265,13 +265,14 @@ fn main() {
                         match e.state() {
                             SessionState::READY => {
                                 context
+                                    .hmd
                                     .session
                                     .begin(ViewConfigurationType::PRIMARY_STEREO)
                                     .unwrap();
                                 xr_session_running = true;
                             }
                             SessionState::STOPPING => {
-                                context.session.end().unwrap();
+                                context.hmd.session.end().unwrap();
                                 xr_session_running = false;
                             }
                             SessionState::FOCUSED => {

@@ -26,6 +26,9 @@ pub struct ContextHMD {
     frame_wait: FrameWaiter,
     frame_stream: FrameStream<Vulkan>,
 
+    pub session: Session<Vulkan>,
+    pub stage: Space,
+
     pub render_pass: RenderPass,
     pub swapchain: SwapchainHMD,
 }
@@ -44,9 +47,6 @@ pub struct Context {
     pub openxr: ManuallyDrop<wrap_openxr::Context>,
     pub vulkan: ManuallyDrop<wrap_vulkan::Context>,
 
-    pub session: Session<Vulkan>,
-    pub stage: Space,
-    // TODO: actions
     pub hmd: ContextHMD,
     pub window: ContextWindow,
 }
@@ -106,11 +106,11 @@ impl Context {
         let vulkan = wrap_vulkan::Context::new(window, &openxr)?;
 
         // Setup HMD, from this point SteamVR needs to be available
-
-        let (session, frame_wait, frame_stream) = openxr.init_with_vulkan(&vulkan)?;
-        let stage = session.create_reference_space(ReferenceSpaceType::STAGE, Posef::IDENTITY)?;
-
         let hmd = {
+            let (session, frame_wait, frame_stream) = openxr.init_with_vulkan(&vulkan)?;
+            let stage =
+                session.create_reference_space(ReferenceSpaceType::STAGE, Posef::IDENTITY)?;
+
             let render_pass = create_render_pass_hmd(&vulkan)?;
             let swapchain = SwapchainHMD::new(&openxr, &vulkan, render_pass, &session)?;
             let image_count = swapchain.elements.len() as u32;
@@ -119,6 +119,8 @@ impl Context {
                 frame_stream,
                 render_pass,
                 swapchain,
+                session,
+                stage,
             }
         };
 
@@ -152,9 +154,6 @@ impl Context {
             openxr: ManuallyDrop::new(openxr),
             vulkan: ManuallyDrop::new(vulkan),
 
-            session,
-            stage,
-
             hmd,
             window,
         })
@@ -169,10 +168,10 @@ impl Context {
     }
 
     pub fn get_views(&self, display_time: Time) -> Result<[View; 2]> {
-        let (_, view_vec) = self.session.locate_views(
+        let (_, view_vec) = self.hmd.session.locate_views(
             ViewConfigurationType::PRIMARY_STEREO,
             display_time,
-            &self.stage,
+            &self.hmd.stage,
         )?;
         Ok([view_vec[0], view_vec[1]])
     }
