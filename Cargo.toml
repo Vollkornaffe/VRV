@@ -13,7 +13,7 @@ ash = { version = "0.37", features = ["loaded", "debug"] }
 ash-window = "0.10.0"
 anyhow = { version = ">=1.0" }
 memoffset = "0.6.5"
-vk-shader-macros = "0.2.7"
+vk-shader-macros = "0.2.7" # TODO: remove this
 gltf = "1.0.0"
 itertools = "0.10.3"
 
