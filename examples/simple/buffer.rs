@@ -1,11 +1,10 @@
-use anyhow::{Error, Result};
-use ash::vk::{BufferUsageFlags, DescriptorSet, DescriptorType, ShaderStageFlags};
-use cgmath::{Matrix4, SquareMatrix};
+use anyhow::Result;
+use ash::vk::BufferUsageFlags;
+use cgmath::Matrix4;
 use crevice::std140::AsStd140;
-use itertools::izip;
+
 use vrv::wrap_vulkan::{
     buffers::MappedDeviceBuffer,
-    descriptors::{DescriptorRelated, Usage},
     geometry::{Mesh, MeshBuffers},
     Context,
 };
@@ -26,7 +25,6 @@ pub struct UniformMatricesWindow {
     pub proj: Matrix4<f32>,
 }
 
-#[derive(Debug)]
 pub struct Buffer<UniformMatrices> {
     pub matrix_buffer: MappedDeviceBuffer<UniformMatrices>,
     pub mesh_buffers: MeshBuffers,

@@ -1,16 +1,19 @@
-use anyhow::{bail, Error, Result};
+use anyhow::Result;
 use std::{
     collections::HashSet,
+    mem::ManuallyDrop,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::Instant,
 };
 
-use ash::vk::{
-    self, CommandBuffer, DescriptorSet, DescriptorType, DynamicState, Extent2D, Fence, Semaphore,
-    ShaderStageFlags,
+use ash::{
+    vk::{
+        CommandBuffer, DescriptorSet, DescriptorType, DynamicState, Extent2D, Fence, Semaphore,
+        ShaderStageFlags,
+    },
+    Device,
 };
 use cgmath::{perspective, Deg, EuclideanSpace, Matrix4, Point3, SquareMatrix, Vector3};
 use openxr::{EventDataBuffer, SessionState, ViewConfigurationType};
@@ -39,19 +42,28 @@ use crate::{
 mod buffer;
 mod camera;
 
-#[derive(Debug)]
 struct Double<UniformMatrices> {
     buffer: Buffer<UniformMatrices>,
     command: CommandBuffer,
     semaphore: Semaphore, // not used in HMD case
     fence: Fence,
+    device: Device,
+}
+
+impl<T> Drop for Double<T> {
+    fn drop(&mut self) {
+        unsafe {
+            self.device.destroy_semaphore(self.semaphore, None);
+            self.device.destroy_fence(self.fence, None);
+        }
+    }
 }
 
 impl<UniformMatrices> Double<UniformMatrices>
 where
     UniformMatrices: std::fmt::Debug,
 {
-    fn create_front_and_back(context: &Context, prefix: String) -> Result<[Self; 2]> {
+    fn create_front_and_back(context: &Context, prefix: String) -> Result<Vec<Self>> {
         Ok(["Front", "Back"]
             .iter()
             .map(|front_or_back| {
@@ -76,16 +88,15 @@ where
                     command,
                     semaphore,
                     fence,
+                    device: context.vulkan.device.clone(),
                 })
             })
-            .collect::<Result<Vec<Self>>>()?
-            .try_into()
-            .unwrap())
+            .collect::<Result<Vec<Self>>>()?)
     }
 
     fn make_descriptors(
         context: &Context,
-        front_back: &[Self; 2],
+        front_back: &[Self],
         prefix: String,
     ) -> Result<(DescriptorRelated, Vec<DescriptorSet>)> {
         DescriptorRelated::new_with_sets(
@@ -111,9 +122,9 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-    let mut context = Context::new(&window).unwrap();
+    let mut context = ManuallyDrop::new(Context::new(&window).unwrap());
 
-    let hmd_front_back =
+    let mut hmd_front_back =
         Double::<UniformMatricesHMD>::create_front_and_back(&context, "HMD".to_string()).unwrap();
     let (hmd_descriptor, hmd_descriptor_sets) = Double::<UniformMatricesHMD>::make_descriptors(
         &context,
@@ -122,7 +133,7 @@ fn main() {
     )
     .unwrap();
 
-    let window_front_back =
+    let mut window_front_back =
         Double::<UniformMatricesWindow>::create_front_and_back(&context, "Window".to_string())
             .unwrap();
     let (window_descriptor, window_descriptor_sets) =
@@ -233,6 +244,14 @@ fn main() {
     // not sure if this is the way I want it...
     // it is an honest approach in the sense that the window is "on top"
     event_loop.run(move |event, _, control_flow| match event {
+        Event::LoopDestroyed => {
+            context.vulkan.wait_idle().unwrap();
+            hmd_front_back.clear();
+            window_front_back.clear();
+            unsafe {
+                ManuallyDrop::drop(&mut context);
+            }
+        }
         Event::MainEventsCleared => {
             if ctrlc.load(Ordering::Relaxed) {
                 log::warn!("Exiting through Ctrl-C");

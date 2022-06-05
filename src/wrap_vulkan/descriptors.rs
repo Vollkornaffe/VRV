@@ -1,11 +1,15 @@
 use std::collections::HashMap;
 
 use anyhow::{Error, Result};
-use ash::vk::{
-    Buffer, DescriptorBufferInfo, DescriptorImageInfo, DescriptorPool, DescriptorPoolCreateInfo,
-    DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo, DescriptorSetLayout,
-    DescriptorSetLayoutBinding, DescriptorSetLayoutCreateInfo, DescriptorType, ImageLayout,
-    ImageView, Sampler, ShaderStageFlags, WriteDescriptorSet, WHOLE_SIZE,
+use ash::{
+    vk::{
+        Buffer, DescriptorBufferInfo, DescriptorImageInfo, DescriptorPool,
+        DescriptorPoolCreateInfo, DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo,
+        DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutCreateInfo,
+        DescriptorType, ImageLayout, ImageView, Sampler, ShaderStageFlags, WriteDescriptorSet,
+        WHOLE_SIZE,
+    },
+    Device,
 };
 
 use super::Context;
@@ -13,6 +17,16 @@ use super::Context;
 pub struct DescriptorRelated {
     pub layout: DescriptorSetLayout,
     pool: DescriptorPool,
+    device: Device,
+}
+
+impl Drop for DescriptorRelated {
+    fn drop(&mut self) {
+        unsafe {
+            self.device.destroy_descriptor_pool(self.pool, None);
+            self.device.destroy_descriptor_set_layout(self.layout, None);
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -170,13 +184,13 @@ impl DescriptorRelated {
             })
             .collect::<Result<_, Error>>()?;
 
-        Ok((Self { layout, pool }, sets))
-    }
-
-    pub unsafe fn destroy(&self, context: &Context) {
-        context.device.destroy_descriptor_pool(self.pool, None);
-        context
-            .device
-            .destroy_descriptor_set_layout(self.layout, None);
+        Ok((
+            Self {
+                layout,
+                pool,
+                device: context.device.clone(),
+            },
+            sets,
+        ))
     }
 }

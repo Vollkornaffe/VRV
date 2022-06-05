@@ -1,22 +1,33 @@
 use std::{marker::PhantomData, mem::size_of};
 
 use anyhow::Result;
-use ash::vk::{
-    Buffer, BufferCreateInfo, BufferUsageFlags, DeviceMemory, DeviceSize, MemoryAllocateInfo,
-    MemoryMapFlags, MemoryPropertyFlags, SharingMode, WHOLE_SIZE,
+use ash::{
+    vk::{
+        Buffer, BufferCreateInfo, BufferUsageFlags, DeviceMemory, DeviceSize, MemoryAllocateInfo,
+        MemoryMapFlags, MemoryPropertyFlags, SharingMode, WHOLE_SIZE,
+    },
+    Device,
 };
 
 use super::Context;
 
-#[derive(Debug)]
 pub struct DeviceBuffer<T> {
     pub handle: Buffer,
     pub memory: DeviceMemory,
     pub len: usize,
     pub _phantom: PhantomData<T>, // to store the type that is stored
+    device: Device,
 }
 
-#[derive(Debug)]
+impl<T> Drop for DeviceBuffer<T> {
+    fn drop(&mut self) {
+        unsafe {
+            self.device.destroy_buffer(self.handle, None);
+            self.device.free_memory(self.memory, None);
+        }
+    }
+}
+
 pub struct MappedDeviceBuffer<T> {
     buffer: DeviceBuffer<T>,
     mapped_ptr: *mut T,
@@ -69,12 +80,8 @@ impl<T> DeviceBuffer<T> {
             memory,
             len,
             _phantom: PhantomData,
+            device: context.device.clone(),
         })
-    }
-
-    pub unsafe fn destroy(&self, context: &Context) {
-        context.device.destroy_buffer(self.handle, None);
-        context.device.free_memory(self.memory, None);
     }
 }
 
@@ -115,9 +122,5 @@ impl<T> MappedDeviceBuffer<T> {
 
     pub fn size(&self) -> usize {
         self.buffer.len
-    }
-
-    pub unsafe fn destroy(&self, context: &Context) {
-        self.buffer.destroy(context);
     }
 }

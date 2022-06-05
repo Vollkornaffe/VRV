@@ -1,10 +1,12 @@
 pub mod render_hmd;
 pub mod render_window;
 pub mod swapchain;
-use std::mem::ManuallyDrop;
 
 use anyhow::{Error, Result};
-use ash::vk::{CommandBuffer, Extent2D, Fence, RenderPass, Semaphore};
+use ash::{
+    vk::{Extent2D, RenderPass, Semaphore},
+    Device,
+};
 
 use openxr::{
     FrameState, FrameStream, FrameWaiter, Posef, ReferenceSpaceType, Session, Space, Time, View,
@@ -15,22 +17,31 @@ use winit::window::Window;
 use crate::{
     wrap_openxr,
     wrap_vulkan::{
-        self, create_render_pass_window,
-        render_pass::create_render_pass_hmd,
-        sync::{create_fence, create_semaphore},
+        self, create_render_pass_window, render_pass::create_render_pass_hmd,
+        sync::create_semaphore,
     },
 };
 use swapchain::{SwapchainHMD, SwapchainWindow};
 
 pub struct ContextHMD {
+    pub session: Session<Vulkan>,
     frame_wait: FrameWaiter,
     frame_stream: FrameStream<Vulkan>,
-
-    pub session: Session<Vulkan>,
     pub stage: Space,
 
     pub render_pass: RenderPass,
     pub swapchain: SwapchainHMD,
+
+    device: Device,
+}
+
+impl Drop for ContextHMD {
+    fn drop(&mut self) {
+        unsafe {
+            self.device.destroy_render_pass(self.render_pass, None);
+            // rest implements drop
+        }
+    }
 }
 
 pub struct ContextWindow {
@@ -41,34 +52,27 @@ pub struct ContextWindow {
 
     pub render_pass: RenderPass,
     pub swapchain: SwapchainWindow,
+
+    device: Device,
+}
+
+impl Drop for ContextWindow {
+    fn drop(&mut self) {
+        unsafe {
+            for semaphore in &self.semaphores_image_acquired {
+                self.device.destroy_semaphore(*semaphore, None);
+            }
+            self.device.destroy_render_pass(self.render_pass, None);
+        }
+    }
 }
 
 pub struct Context {
-    pub openxr: ManuallyDrop<wrap_openxr::Context>,
-    pub vulkan: ManuallyDrop<wrap_vulkan::Context>,
-
     pub hmd: ContextHMD,
     pub window: ContextWindow,
-}
 
-impl Drop for Context {
-    fn drop(&mut self) {
-        self.vulkan.wait_idle().unwrap();
-
-        unsafe {
-            self.window.swapchain.destroy(&self.vulkan);
-
-            for &s in &self.window.semaphores_image_acquired {
-                self.vulkan.device.destroy_semaphore(s, None);
-            }
-            self.vulkan
-                .device
-                .destroy_render_pass(self.window.render_pass, None);
-
-            ManuallyDrop::drop(&mut self.vulkan);
-            ManuallyDrop::drop(&mut self.openxr);
-        }
-    }
+    pub openxr: wrap_openxr::Context,
+    pub vulkan: wrap_vulkan::Context,
 }
 
 #[derive(Copy, Clone)]
@@ -85,8 +89,6 @@ pub struct PreRenderInfoHMD {
 impl Context {
     pub fn resize(&mut self, window: &Window) -> Result<()> {
         self.vulkan.wait_idle()?;
-
-        unsafe { self.window.swapchain.destroy(&self.vulkan) };
 
         self.window.swapchain = SwapchainWindow::new(
             &self.vulkan,
@@ -113,7 +115,6 @@ impl Context {
 
             let render_pass = create_render_pass_hmd(&vulkan)?;
             let swapchain = SwapchainHMD::new(&openxr, &vulkan, render_pass, &session)?;
-            let image_count = swapchain.elements.len() as u32;
             ContextHMD {
                 frame_wait,
                 frame_stream,
@@ -121,6 +122,7 @@ impl Context {
                 swapchain,
                 session,
                 stage,
+                device: vulkan.device.clone(),
             }
         };
 
@@ -147,12 +149,13 @@ impl Context {
                         height: window.inner_size().height,
                     },
                 )?,
+                device: vulkan.device.clone(),
             }
         };
 
         Ok(Self {
-            openxr: ManuallyDrop::new(openxr),
-            vulkan: ManuallyDrop::new(vulkan),
+            openxr,
+            vulkan,
 
             hmd,
             window,

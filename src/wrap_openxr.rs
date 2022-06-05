@@ -4,34 +4,32 @@ use ash::vk::{
     PhysicalDevice,
 };
 use openxr::{
-    sys,
     vulkan::{Requirements, SessionCreateInfo},
     ApplicationInfo, Entry, EnvironmentBlendMode, ExtensionSet, FormFactor, FrameStream,
     FrameWaiter, Instance, Session, Swapchain, SwapchainCreateFlags, SwapchainCreateInfo,
     SwapchainUsageFlags, SystemId, ViewConfigurationType, Vulkan,
 };
 
-fn check(instance: &Instance, xr_result: sys::Result) -> Result<()> {
-    if xr_result != sys::Result::SUCCESS {
-        bail!("{}", instance.result_to_string(xr_result).unwrap());
-    }
-    Ok(())
-}
-
 #[cfg(feature = "validation_openxr")]
 mod debug {
-    use anyhow::Result;
+
+    use anyhow::{bail, Result};
     use openxr::{
         raw::DebugUtilsEXT,
         sys::{
-            Bool32, DebugUtilsMessengerCallbackDataEXT, DebugUtilsMessengerCreateInfoEXT,
+            self, Bool32, DebugUtilsMessengerCallbackDataEXT, DebugUtilsMessengerCreateInfoEXT,
             DebugUtilsMessengerEXT,
         },
         DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT, Entry, Instance,
         StructureType,
     };
 
-    use super::check;
+    fn check(instance: &Instance, xr_result: sys::Result) -> Result<()> {
+        if xr_result != sys::Result::SUCCESS {
+            bail!("{}", instance.result_to_string(xr_result).unwrap());
+        }
+        Ok(())
+    }
 
     pub struct Debug {
         pub debug_utils_loader: DebugUtilsEXT,

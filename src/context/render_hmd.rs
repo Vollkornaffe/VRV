@@ -118,12 +118,7 @@ impl Context {
         command_buffer: CommandBuffer,
         rendering_finished_fence: Fence,
     ) -> Result<()> {
-        let PreRenderInfoHMD {
-            image_index,
-            frame_state,
-        } = pre_render_info;
-
-        let image_index = image_index.ok_or(Error::msg("Shouldn't render, says OpenXR"))?;
+        let PreRenderInfoHMD { frame_state, .. } = pre_render_info;
 
         unsafe {
             self.vulkan.device.queue_submit(

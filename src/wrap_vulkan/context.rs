@@ -6,8 +6,10 @@ use std::{
 };
 use winit::window::Window;
 
+#[cfg(feature = "validation_vulkan")]
+use ash::extensions::ext::DebugUtils;
 use ash::{
-    extensions::{ext::DebugUtils, khr::Swapchain},
+    extensions::khr::Swapchain,
     vk::{
         api_version_major, api_version_minor, make_api_version, ApplicationInfo, CommandBuffer,
         CommandBufferAllocateInfo, CommandBufferLevel, CommandPool, CommandPoolCreateFlags,
@@ -45,6 +47,7 @@ impl Drop for Context {
     fn drop(&mut self) {
         unsafe {
             ManuallyDrop::drop(&mut self.window_surface_related);
+            self.device.destroy_command_pool(self.pool, None);
             #[cfg(feature = "validation_vulkan")]
             ManuallyDrop::drop(&mut self.debug);
             self.device.destroy_device(None);

@@ -6,6 +6,7 @@ use ash::{
         ImageAspectFlags, ImageTiling, ImageUsageFlags, ImageView, MemoryPropertyFlags,
         PresentModeKHR, RenderPass, SharingMode, SwapchainCreateInfoKHR, SwapchainKHR,
     },
+    Device,
 };
 
 use openxr::{Session, Vulkan};
@@ -20,12 +21,26 @@ pub struct SwapElement {
     pub view: ImageView,
     pub frame_buffer: Framebuffer,
 }
+
 pub struct SwapchainWindow {
     pub extent: Extent2D,
     pub depth_image: DeviceImage,
     pub loader: Swapchain,
     pub handle: SwapchainKHR,
     pub elements: Vec<SwapElement>,
+    device: Device,
+}
+
+impl Drop for SwapchainWindow {
+    fn drop(&mut self) {
+        unsafe {
+            for element in &self.elements {
+                self.device.destroy_image_view(element.view, None);
+                self.device.destroy_framebuffer(element.frame_buffer, None);
+            }
+            self.loader.destroy_swapchain(self.handle, None);
+        }
+    }
 }
 
 pub struct SwapchainHMD {
@@ -33,6 +48,20 @@ pub struct SwapchainHMD {
     pub swapchain: openxr::Swapchain<Vulkan>,
     pub depth_image: DeviceImage,
     pub elements: Vec<SwapElement>,
+    device: Device,
+}
+
+impl Drop for SwapchainHMD {
+    fn drop(&mut self) {
+        unsafe {
+            for element in &self.elements {
+                self.device.destroy_image_view(element.view, None);
+                self.device.destroy_image(element.image, None);
+                self.device.destroy_framebuffer(element.frame_buffer, None);
+            }
+        }
+        // swapchain implements Drop
+    }
 }
 
 impl SwapchainWindow {
@@ -141,16 +170,8 @@ impl SwapchainWindow {
             loader,
             handle,
             elements,
+            device: context.device.clone(),
         })
-    }
-
-    pub unsafe fn destroy(&self, context: &wrap_vulkan::Context) {
-        for e in &self.elements {
-            context.device.destroy_image_view(e.view, None);
-            context.device.destroy_framebuffer(e.frame_buffer, None);
-        }
-        self.loader.destroy_swapchain(self.handle, None);
-        self.depth_image.destroy(context);
     }
 }
 
@@ -224,6 +245,7 @@ impl SwapchainHMD {
             swapchain,
             depth_image,
             elements,
+            device: vk_context.device.clone(),
         })
     }
 }

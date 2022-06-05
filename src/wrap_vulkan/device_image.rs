@@ -1,9 +1,12 @@
 use anyhow::Result;
-use ash::vk::{
-    DeviceMemory, Extent2D, Extent3D, Format, Image, ImageAspectFlags, ImageCreateInfo,
-    ImageLayout, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView,
-    ImageViewCreateInfo, ImageViewType, MemoryAllocateInfo, MemoryPropertyFlags, SampleCountFlags,
-    SharingMode,
+use ash::{
+    vk::{
+        DeviceMemory, Extent2D, Extent3D, Format, Image, ImageAspectFlags, ImageCreateInfo,
+        ImageLayout, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView,
+        ImageViewCreateInfo, ImageViewType, MemoryAllocateInfo, MemoryPropertyFlags,
+        SampleCountFlags, SharingMode,
+    },
+    Device,
 };
 
 use super::Context;
@@ -12,6 +15,7 @@ pub struct DeviceImage {
     pub image: Image,
     pub memory: DeviceMemory,
     pub view: ImageView,
+    device: Device,
 }
 
 pub struct DeviceImageSettings {
@@ -23,6 +27,16 @@ pub struct DeviceImageSettings {
     pub aspect_flags: ImageAspectFlags,
     pub layer_count: u32, // 2 for hmd
     pub name: String,
+}
+
+impl Drop for DeviceImage {
+    fn drop(&mut self) {
+        unsafe {
+            self.device.destroy_image_view(self.view, None);
+            self.device.destroy_image(self.image, None);
+            self.device.free_memory(self.memory, None);
+        }
+    }
 }
 
 impl DeviceImage {
@@ -112,12 +126,7 @@ impl DeviceImage {
             image,
             memory,
             view,
+            device: context.device.clone(),
         })
-    }
-
-    pub unsafe fn destroy(&self, context: &Context) {
-        context.device.destroy_image_view(self.view, None);
-        context.device.destroy_image(self.image, None);
-        context.device.free_memory(self.memory, None);
     }
 }

@@ -127,7 +127,6 @@ impl Mesh {
     }
 }
 
-#[derive(Debug)]
 pub struct MeshBuffers {
     pub vertex: MappedDeviceBuffer<Vertex>,
     pub index: MappedDeviceBuffer<u32>,
@@ -161,8 +160,6 @@ impl MeshBuffers {
             return Ok(());
         }
 
-        unsafe { self.vertex.destroy(context) };
-
         self.vertex = MappedDeviceBuffer::new(
             context,
             BufferUsageFlags::VERTEX_BUFFER,
@@ -177,8 +174,6 @@ impl MeshBuffers {
         if self.index.size() == new_size {
             return Ok(());
         }
-
-        unsafe { self.index.destroy(context) };
 
         self.index = MappedDeviceBuffer::new(
             context,
@@ -219,10 +214,5 @@ impl MeshBuffers {
 
     pub fn index_buffer(&self) -> Buffer {
         self.index.handle()
-    }
-
-    pub unsafe fn destroy(&self, context: &Context) {
-        self.vertex.destroy(context);
-        self.index.destroy(context);
     }
 }
