@@ -55,20 +55,14 @@ impl<T> DeviceBuffer<T> {
         context.name_object(handle, format!("{}Handle", name))?;
 
         let memory = unsafe {
+            let requirements = context.device.get_buffer_memory_requirements(handle);
             context.device.allocate_memory(
                 &MemoryAllocateInfo::builder()
-                    .allocation_size(size)
-                    .memory_type_index(
-                        context.find_memory_type_index(
-                            MemoryPropertyFlags::from_raw(
-                                context
-                                    .device
-                                    .get_buffer_memory_requirements(handle)
-                                    .memory_type_bits,
-                            ),
-                            properties,
-                        )?,
-                    ),
+                    .allocation_size(requirements.size)
+                    .memory_type_index(context.find_memory_type_index(
+                        MemoryPropertyFlags::from_raw(requirements.memory_type_bits),
+                        properties,
+                    )?),
                 None,
             )
         }?;
