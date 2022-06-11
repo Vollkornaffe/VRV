@@ -4,7 +4,7 @@ pub mod swapchain;
 
 use anyhow::{Error, Result};
 use ash::{
-    vk::{Extent2D, RenderPass, Semaphore},
+    vk::{Extent2D, RenderPass, Semaphore, SwapchainKHR},
     Device,
 };
 
@@ -97,6 +97,7 @@ impl Context {
                 width: window.inner_size().width,
                 height: window.inner_size().height,
             },
+            self.window.swapchain.handle,
         )?;
         Ok(())
     }
@@ -148,6 +149,7 @@ impl Context {
                         width: window.inner_size().width,
                         height: window.inner_size().height,
                     },
+                    SwapchainKHR::default(),
                 )?,
                 device: vulkan.device.clone(),
             }

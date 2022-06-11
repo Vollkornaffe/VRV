@@ -69,6 +69,7 @@ impl SwapchainWindow {
         context: &wrap_vulkan::Context,
         render_pass: RenderPass,
         wanted: Extent2D,
+        old_swapchain: SwapchainKHR,
     ) -> Result<Self> {
         let depth_format = context.find_supported_depth_stencil_format()?;
         let extent = context.get_allowed_extend(wanted)?;
@@ -114,7 +115,8 @@ impl SwapchainWindow {
                     .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
                     .present_mode(present_mode)
                     .clipped(true)
-                    .image_array_layers(1),
+                    .image_array_layers(1)
+                    .old_swapchain(old_swapchain),
                 None,
             )
         }?;
