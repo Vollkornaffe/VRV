@@ -36,6 +36,24 @@ impl Context {
         })
     }
 
+    pub fn post_render_window(
+        &self,
+        pre_render_info: PreRenderInfoWindow,
+        wait_semaphores: &[Semaphore],
+    ) -> Result<()> {
+        unsafe {
+            let _suboptimal = self.window.swapchain.loader.queue_present(
+                self.vulkan.queue,
+                &PresentInfoKHR::builder()
+                    .wait_semaphores(wait_semaphores)
+                    .swapchains(&[self.window.swapchain.handle])
+                    .image_indices(&[pre_render_info.image_index]),
+            )?;
+        }
+
+        Ok(())
+    }
+
     pub fn render_window(
         &self,
         pre_render_info: PreRenderInfoWindow,
@@ -133,13 +151,7 @@ impl Context {
                 rendering_finished_fence,
             )?;
 
-            let _suboptimal = self.window.swapchain.loader.queue_present(
-                self.vulkan.queue,
-                &PresentInfoKHR::builder()
-                    .wait_semaphores(&[rendering_finished_semaphore])
-                    .swapchains(&[self.window.swapchain.handle])
-                    .image_indices(&[image_index]),
-            )?;
+            self.post_render_window(pre_render_info, &[rendering_finished_semaphore])?;
         }
 
         Ok(())
