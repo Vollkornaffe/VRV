@@ -78,7 +78,7 @@ pub struct Context {
 #[derive(Copy, Clone)]
 pub struct PreRenderInfoWindow {
     pub image_index: u32,
-    image_acquired_semaphore: Semaphore,
+    pub image_acquired_semaphore: Semaphore,
 }
 #[derive(Copy, Clone)]
 pub struct PreRenderInfoHMD {
