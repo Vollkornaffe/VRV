@@ -73,9 +73,6 @@ impl Context {
         // get the other stuff now that we know the index
         let frame_buffer = self.window.swapchain.elements[image_index as usize].frame_buffer;
 
-        // waite before resetting cmd buffer
-        wait_and_reset(&self.vulkan, rendering_finished_fence)?;
-
         // for convenience
         let extent = self.window.swapchain.extent;
         unsafe {

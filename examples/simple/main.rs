@@ -24,7 +24,7 @@ use vrv::{
         create_pipeline, create_pipeline_layout,
         descriptors::{DescriptorRelated, Usage},
         pipeline::create_shader_module,
-        sync::{create_fence, create_semaphore},
+        sync::{create_fence, create_semaphore, wait_and_reset},
     },
     Context,
 };
@@ -357,12 +357,16 @@ fn main() {
             }
 
             let window_pre_render_info = context.pre_render_window().unwrap();
+
             spherical_coords.update(
                 &pressed_keys
                     .iter()
                     .map(|&k| k.into())
                     .collect::<Vec<KeyMap>>(),
             );
+
+            // waite before writing to resources used in window rendering
+            wait_and_reset(&context.vulkan, window_front_back[window_flip_flop].fence).unwrap();
 
             window_front_back[window_flip_flop]
                 .buffer
