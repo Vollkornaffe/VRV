@@ -316,6 +316,32 @@ fn main() {
             }
 
             let hmd_pre_render_info = context.pre_render_hmd().unwrap();
+
+            if xr_focused {
+                let input_state = context
+                    .hmd
+                    .actions
+                    .get_state(
+                        &context.hmd.stage,
+                        hmd_pre_render_info.frame_state.predicted_display_time,
+                    )
+                    .unwrap();
+                if input_state.trigger_clicks[0].current_state {
+                    log::warn!(
+                        "Pressed left trigger, hand is at {:?}",
+                        input_state.hand_poses[0].position
+                    );
+                }
+                if input_state.trigger_clicks[1].current_state {
+                    log::warn!(
+                        "Pressed right trigger, hand is at {:?}",
+                        input_state.hand_poses[1].position
+                    );
+                }
+            } else {
+                log::warn!("Not focused!");
+            }
+
             if hmd_pre_render_info.image_index.is_some() {
                 context
                     .record_hmd(

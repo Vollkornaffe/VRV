@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod render_hmd;
 pub mod render_window;
 pub mod swapchain;
@@ -23,11 +24,15 @@ use crate::{
 };
 use swapchain::{SwapchainHMD, SwapchainWindow};
 
+use self::actions::{Actions, State};
+
 pub struct ContextHMD {
     pub session: Session<Vulkan>,
     frame_wait: FrameWaiter,
     frame_stream: FrameStream<Vulkan>,
     pub stage: Space,
+
+    pub actions: Actions,
 
     pub render_pass: RenderPass,
     pub swapchain: SwapchainHMD,
@@ -113,6 +118,7 @@ impl Context {
             let (session, frame_wait, frame_stream) = openxr.init_with_vulkan(&vulkan)?;
             let stage =
                 session.create_reference_space(ReferenceSpaceType::STAGE, Posef::IDENTITY)?;
+            let actions = Actions::new(&openxr.instance, session.clone())?;
 
             let render_pass = create_render_pass_hmd(&vulkan)?;
             let swapchain = SwapchainHMD::new(&openxr, &vulkan, render_pass, &session)?;
@@ -123,6 +129,7 @@ impl Context {
                 swapchain,
                 session,
                 stage,
+                actions,
                 device: vulkan.device.clone(),
             }
         };
